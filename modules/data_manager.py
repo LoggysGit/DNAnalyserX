@@ -5,8 +5,6 @@ from pathlib import Path
 import requests
 import shutil
 
-import gzip
-
 import sqlite3
 
 import modules.lib as lib
@@ -36,7 +34,7 @@ class DataManager:
                     if chunk: f_bin.write(chunk)
 
             lib.log(f"Chromosome #{chromosome_id} downloaded into {lib.TEMP_DIR}.")
-            return gzip.open(target_path, "rt")
+            return lib.gzip_open(target_path)
             
         except Exception as e:
             lib.log(f"Download error: {e}")
@@ -50,5 +48,5 @@ class DataManager:
                     for d in dirs: shutil.rmtree(os.path.join(root, d))
 
                 lib.log("Temporary data buffer purged successfully.")
-                
+
             except Exception as e: lib.log(f"Execution handling error during directory cleanup: {e}")

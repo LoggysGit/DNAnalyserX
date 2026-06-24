@@ -14,7 +14,7 @@ LOGS_FILE_DIR = "logs.log"
 
 DB_PATH = DATA_DIR / "disease_database.db"
 
-MAX_NUCL_LENGTH = 32786
+MAX_NUCL_LENGTH = 50000
 
 MATCH_SCORE = 2
 MISMATCH_SCORE = -1
@@ -31,8 +31,15 @@ def log(data):
 def open_file(path):
     try:
         lib.log(f"Opening file: {path}")
-        with open(path, 'r', encoding="utf-8") as f: return f
-        lib.log(f"File {path} opened successfully")
-    except Exception as e: lib.log(f"Error opening {path} file.")
+        with open(path, 'r', encoding="utf-8") as f: return f.readlines()
+    except Exception as e: 
+        lib.log(f"Error opening {path} file: {e}")
+        return []
 
-def gzip_open(path): return gzip.open(path, "rt")
+def gzip_open(path):
+    try:
+        lib.log(f"Opening GZ file: {path}")
+        with gzip.open(path, "rt", encoding="utf-8") as f: return f.readlines()
+    except Exception as e:
+        lib.log(f"Error opening GZ {path} file: {e}")
+        return []

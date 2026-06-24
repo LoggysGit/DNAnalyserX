@@ -8,14 +8,13 @@ from pathlib import Path
 
 def generate_test_dataset(chromosome_id, start_pos, length=500, mutation_rate=0.02, output_dir="data"):
     """
-    Downloads a specific human chromosome from NCBI, extracts a target segment
-    starting at a given position, introduces random mutations, and saves the
-    imperfect sequence directly into a compressed .fasta.gz file.
+    Downloads reference chromosome, extracts a target segment,
+    introduces SNPs, Insertions, and Deletions to test the alignment engine,
+    saves the result, and IMMEDIATELY deletes the heavy reference file.
     """
     chrom_clean = str(chromosome_id).lower().replace("chr", "").strip()
     url = f"https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.40_GRCh38.p14/GCF_000001405.40_GRCh38.p14_assembly_structure/Primary_Assembly/assembled_chromosomes/FASTA/chr{chrom_clean}.fna.gz"
 
-    # Ensure output directories exist structurally
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     
@@ -23,11 +22,9 @@ def generate_test_dataset(chromosome_id, start_pos, length=500, mutation_rate=0.
     temp_dir.mkdir(parents=True, exist_ok=True)
 
     temp_gzip_path = temp_dir / f"temp_ref_chr{chrom_clean}.fasta.gz"
-    
-    # Changed output format signature to standard compressed archive tracking
     patient_file_path = output_path / f"patient_chr{chrom_clean}_mutated.fasta.gz"
 
-    # 1. Download the reference chromosome archive
+    # 1. Скачиваем временный тяжелый файл
     print(f"Downloading reference chromosome {chrom_clean} from NCBI...")
     try:
         response = requests.get(url, stream=True, timeout=30)
@@ -41,8 +38,8 @@ def generate_test_dataset(chromosome_id, start_pos, length=500, mutation_rate=0.
         print(f"Failed to download reference chromosome: {e}")
         return None
 
-    # 2. Extract the exact segment from the gzipped FASTA on the fly
-    print(f"Extracting {length} bp starting from position {start_pos}...")
+    # 2. Вытаскиваем нужный кусок (берём с запасом x2 для компенсации инделов)
+    print(f"Extracting segment starting from position {start_pos}...")
     ref_buffer = []
     bytes_read = 0
     target_started = False
@@ -56,57 +53,67 @@ def generate_test_dataset(chromosome_id, start_pos, length=500, mutation_rate=0.
             line_len = len(line)
             if not target_started and bytes_read + line_len >= start_pos:
                 target_started = True
-                offset = start_pos - bytes_read - 1  # Convert to 0-based coordinate
+                offset = start_pos - bytes_read - 1
                 ref_buffer.append(line[offset:])
             elif target_started: 
                 ref_buffer.append(line)
                 
             bytes_read += line_len
-            if target_started and sum(len(s) for s in ref_buffer) >= length:
+            if target_started and sum(len(s) for s in ref_buffer) >= length * 2:
                 break
 
-    reference_sequence = "".join(ref_buffer)[:length].upper()
+    reference_sequence = "".join(ref_buffer)[:length * 2].upper()
 
-    if len(reference_sequence) < length:
-        print("Error: Reached the end of the chromosome file before collecting enough nucleotides.")
-        if temp_gzip_path.exists():
-            os.remove(temp_gzip_path)
-        return None
-
-    # 3. Mutate the extracted reference segment
+    # 3. Генерируем полноценные мутации (SNP, Insertion, Deletion)
     print(f"Simulating mutations with a rate of {mutation_rate * 100}%...")
     bases = ['A', 'C', 'T', 'G']
     patient_sequence = []
-    mutations_introduced = 0
+    stats = {"SNP": 0, "Deletion": 0, "Insertion": 0}
 
-    # Dynamic seed calculation for debugging session divergence handling
     random.seed(int(os.getpid() + start_pos + time.time()))
 
-    for i, ref_base in enumerate(reference_sequence):
+    ref_idx = 0
+    while len(patient_sequence) < length and ref_idx < len(reference_sequence):
+        ref_base = reference_sequence[ref_idx]
+        
         if random.random() < mutation_rate:
-            possible_mutations = [b for b in bases if b != ref_base]
-            mutated_base = random.choice(possible_mutations)
-            patient_sequence.append(mutated_base)
-            mutations_introduced += 1
+            mut_type = random.choice(["SNP", "Deletion", "Insertion"])
+            
+            if mut_type == "SNP":
+                possible_mutations = [b for b in bases if b != ref_base]
+                patient_sequence.append(random.choice(possible_mutations))
+                stats["SNP"] += 1
+                ref_idx += 1
+            elif mut_type == "Deletion":
+                stats["Deletion"] += 1
+                ref_idx += 1  # Просто пропускаем букву референса
+            elif mut_type == "Insertion":
+                patient_sequence.append(ref_base)
+                patient_sequence.append(random.choice(bases))  # Вставляем лишнюю букву
+                stats["Insertion"] += 1
+                ref_idx += 1
         else:
             patient_sequence.append(ref_base)
+            ref_idx += 1
             
-    final_patient_string = "".join(patient_sequence)
+    final_patient_string = "".join(patient_sequence)[:length]
 
-    # 4. Save the generated patient sequence block directly as gzipped FASTA
-    # Writing text content block safely inside a runtime archive pipeline block
+    # 4. Сохраняем результат пациента
     with gzip.open(patient_file_path, "wt") as f_out:
-        f_out.write(f">patient_chr{chrom_clean}_simulated_sequence position={start_pos} length={length}\n")
+        f_out.write(f">patient_chr{chrom_clean}_simulated position={start_pos} length={length}\n")
         f_out.write(final_patient_string + "\n")
         
+    # 5. ТРЭШ-КОНТРОЛЬ: Немедленно удаляем гигабайты референса
     if temp_gzip_path.exists(): 
         os.remove(temp_gzip_path)
+    if temp_dir.exists() and not os.listdir(temp_dir):
+        os.rmdir(temp_dir)
         
     print("\n" + "="*50)
-    print(f"SUCCESS: Compressed test script dataset generation finished.")
+    print(f"SUCCESS: Test dataset generation finished. Disk space cleared.")
     print(f"Target Compressed File: {patient_file_path}")
     print(f"Total Length: {len(final_patient_string)} bases")
-    print(f"Actual Mutations Injected: {mutations_introduced}")
+    print(f"Injected: {stats['SNP']} SNPs, {stats['Deletion']} Del, {stats['Insertion']} Ins")
     print("="*50)
 
     return patient_file_path

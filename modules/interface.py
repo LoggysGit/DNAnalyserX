@@ -155,7 +155,7 @@ class App(ctk.CTk):
         table_frame = ctk.CTkFrame(workspace_frame, fg_color="transparent")
         table_frame.pack(fill="both", expand=True)
         
-        columns = ("chr", "position", "ref", "alt")
+        columns = ("chr", "position", "ref", "alt", "clnvs")
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings")
         
         self.tree.heading("chr", text="CHR")
@@ -164,11 +164,11 @@ class App(ctk.CTk):
         self.tree.heading("alt", text="Alt")
         self.tree.heading("clnvs", text="CLNVS")
         
-        self.tree.column("chr", width=80, anchor="center")
-        self.tree.column("position", width=200, anchor="w")
-        self.tree.column("ref", width=90, anchor="center")
-        self.tree.column("alt", width=90, anchor="center")
-        self.tree.column("clnvs", width=120, anchor="center")
+        self.tree.column("chr", width=50, anchor="center")
+        self.tree.column("position", width=100, anchor="w")
+        self.tree.column("ref", width=60, anchor="center")
+        self.tree.column("alt", width=60, anchor="center")
+        self.tree.column("clnvs", width=100, anchor="center")
         
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)

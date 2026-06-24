@@ -23,23 +23,19 @@ def system_thread():
 
                 file_path, chrm, pos = payload
                 # Open files
-                if file_path.endswith(".gz"): selected_file = lib.gzip_open(file_path)
-                else: selected_file = lib.open_file(file_path, "r")
-                chr_file = data_manager.download_chromosome(chrm)
+                if file_path.endswith(".gz"): selected_file_data = lib.gzip_open(file_path)
+                else: selected_file_data = lib.open_file(file_path, "r")
+                chr_data = data_manager.download_chromosome(chrm)
 
                 # Check
-                if len(selected_file) > lib.MAX_NUCL_LENGTH:
+                if len(selected_file_data) > lib.MAX_NUCL_LENGTH:
                     lib.log(f"Selected file too long (>{lib.MAX_NUCL_LENGTH}). OverflowError.")
                     gui_command_buffer.put(("DONE", None))
                     break
 
                 # Anaalyze & Send
-                results = core.run(selected_file, chr_file, int(pos), chrm)
+                results = core.run_comparing(selected_file_data, chr_data, int(pos))
                 for r in results: gui_command_buffer.put(("DNA_ANOMALY", r))
-
-                # Close files
-                selected_file.close()
-                chr_file.close()
 
                 # Purge temp
                 data_manager.purge_temp()

@@ -6,39 +6,34 @@ class Core:
         self.data_manager = dman
         self.gui_command_buffer = gui_cmd_buff
 
-    def run(self, patient_file, reference_file, position, chromosome):
-        # --- Parse data --- #
-        # Patient DNA sector
-        raw_lines = patient_file.readlines()
-
-        clean_lines = [line.strip().upper() for line in raw_lines if not line.startswith(">")]
-        patient_seq = "".join(clean_lines)
+    def run_comparing(self, patient_data, reference_data, position):
+        # Parse Patient Data
+        if isinstance(patient_data, list):
+            clean_lines = [line.strip().upper() for line in patient_data if not line.startswith(">")]
+            patient_seq = "".join(clean_lines)
+        else: patient_seq = patient_data.strip().upper()
 
         patient_seq_len = len(patient_seq)
 
-        # Reference DNA sector
-        reference_file.seek(0)
-        
-        letters_read = 0
-        ref_buffer = []
-        target_reached = False
-        for line in reference_file:
-            line = line.strip().upper()
-            # Skip metadata and empty lines
-            if not line or line.startswith(">"): continue
-            line_len = len(line)
-            
-            if not target_reached and letters_read + line_len >= position:
-                target_reached = True
-                offset = position - letters_read - 1
-                ref_buffer.append(line[offset:])
-            elif target_reached: ref_buffer.append(line)
-                
-            letters_read += line_len
-        ref_seq = "".join(ref_buffer)
+        # Hard Check for overflow (Never excess to check double)
+        if patient_seq_len > lib.MAX_NUCL_LENGTH:
+            lib.log(f"Patient sequence too long ({patient_seq_len} > {lib.MAX_NUCL_LENGTH}). Skipping.")
+            return []
+
+        # Parse Reference Data
+        if isinstance(reference_data, list):
+            clean_ref_lines = [line.strip().upper() for line in reference_data if not line.startswith(">")]
+            full_ref_str = "".join(clean_ref_lines)
+        else: full_ref_str = reference_data.strip().upper()
+
+        ref_seq = full_ref_str[position - 1:]
         ref_seq_len = len(ref_seq)
 
-        # --- Main check cycle --- #
+        if ref_seq_len > lib.MAX_NUCL_LENGTH:
+            ref_seq = ref_seq[:lib.MAX_NUCL_LENGTH]
+            ref_seq_len = len(ref_seq)
+
+        # Compare genome and extract VCF data
         results = self.compare_ref(position, patient_seq, ref_seq, patient_seq_len, ref_seq_len)
 
         return results
@@ -83,7 +78,7 @@ class Core:
         results.reverse()
         return self.format_mutation_results(results)
     
-    def format_mutation_results(raw_res):
+    def format_mutation_results(self, raw_res):
         if not raw_res: return []
 
         res = []
@@ -102,7 +97,6 @@ class Core:
                 if temp_mut[1] == "SNP" and (len(temp_mut[2]) > 1 or len(temp_mut[3]) > 1): temp_mut[1] = "MNP"
 
                 res.append(temp_mut)
-
                 temp_mut = [mutation[0], mutation[1], mutation[2], mutation[3]]
 
         if temp_mut[1] == "SNP" and (len(temp_mut[2]) > 1 or len(temp_mut[3]) > 1): temp_mut[1] = "MNP"
