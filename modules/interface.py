@@ -121,18 +121,15 @@ class App(ctk.CTk):
                         bd=0)
 
     def init_ui(self):
-        # Grid configuration for the main window
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)  # Top working area (expands)
-        self.grid_rowconfigure(1, weight=0)  # Bottom control panel (fixed)
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=0)
 
-                # =====================================================================
         # TOP AREA: Workspace Container (File Info + Progress + Treeview)
-        # =====================================================================
         workspace_frame = ctk.CTkFrame(self, fg_color="transparent")
         workspace_frame.grid(row=0, column=0, sticky="nsew", padx=15, pady=(15, 5))
 
-        # 1. FILE METADATA SUB-PANEL (Centered layout with scaled fonts)
+        # 1. FILE METADATA SUB-PANEL
         file_info_frame = ctk.CTkFrame(workspace_frame, fg_color="transparent")
         file_info_frame.pack(fill="x", pady=(0, 10))
 
@@ -143,7 +140,7 @@ class App(ctk.CTk):
         self.lbl_status_filename = ctk.CTkLabel(
             metadata_center_container, 
             text="Not selected", 
-            font=("Arial", 32, "bold"), # Scaled up for prominent display
+            font=("Arial", 32, "bold"),
             text_color=self.ui_colors["text_main"]
         )
         self.lbl_status_filename.pack(side="left")
@@ -151,7 +148,7 @@ class App(ctk.CTk):
         self.lbl_status_filesize = ctk.CTkLabel(
             metadata_center_container, 
             text="0.0 MB", 
-            font=("Arial", 16), # Proportionally adjusted secondary text
+            font=("Arial", 16),
             text_color=self.ui_colors["text_muted"]
         )
         self.lbl_status_filesize.pack(side="left", padx=12, pady=(4, 0))

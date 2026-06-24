@@ -1,3 +1,4 @@
+import numpy as np
 import modules.lib as lib
 
 class Core:
@@ -5,10 +6,8 @@ class Core:
         self.data_manager = dman
         self.gui_command_buffer = gui_cmd_buff
 
-    def run(self, patient_file, reference_file, chromosome, position):
-        results = []
-
-        # --- Prepare data --- #
+    def run(self, patient_file, reference_file, position, chromosome):
+        # --- Parse data --- #
         # Patient DNA sector
         raw_lines = patient_file.readlines()
         clean_lines = [line.strip().upper() for line in raw_lines if not line.startswith(">")]
@@ -41,11 +40,20 @@ class Core:
         reference_sector = "".join(ref_buffer)[:seq_len]
 
         # --- Main check cycle --- #
-        for n in range(seq_len):
-            if patient_seq[n] != reference_sector[n]:
-                results.append([position + n, reference_sector[n], patient_seq[n]])
+        results = self.compare_ref(position, seq_len, patient_seq, reference_sector)
 
         return results
+    
+    def compare_ref(self, pos, seq_len, patient_seq, ref_seq):
+        pass
+    
+    def format_alt_results(raw_res):
+        # If we have consequently going mutations, merge them into one mutation:
+        # 65343 A G
+        # 65344 C A
+        # 65345 T .
+        # -> 65343 ACT GA
+        return raw_res
     
     def find_mutations(self, dna_anomalies, chromosome_id):
         diseases = []

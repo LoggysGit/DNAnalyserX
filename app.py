@@ -9,7 +9,7 @@ import modules.interface as gui
 gui_command_buffer = queue.Queue()
 sys_command_buffer = queue.Queue()
 
-data_manager = dataManager.DataManager()
+data_manager = dataManager.DataManager(lib.DB_PATH)
 core = engine.Core(gui_command_buffer, data_manager)
 app = gui.App(gui_command_buffer, sys_command_buffer, data_manager)
 
@@ -26,14 +26,24 @@ def system_thread():
                 if file_path.endswith(".gz"): selected_file = lib.gzip_open(file_path)
                 else: selected_file = lib.open_file(file_path, "r")
                 chr_file = data_manager.download_chromosome(chrm)
+
+                # Check
+                if len(selected_file) > lib.MAX_NUCL_LENGTH:
+                    lib.log(f"Selected file too long (>{lib.MAX_NUCL_LENGTH}). OverflowError.")
+                    gui_command_buffer.put(("DONE", None))
+                    break
+
                 # Anaalyze & Send
-                results = core.run(selected_file, chr_file, chrm, int(pos))
+                results = core.run(selected_file, chr_file, int(pos), chrm)
                 for r in results: gui_command_buffer.put(("DNA_ANOMALY", r))
+
                 # Close files
                 selected_file.close()
                 chr_file.close()
+
                 # Purge temp
                 data_manager.purge_temp()
+
                 # Seek for diseases
                 diseases = core.find_mutations(results, chrm)
                 for d in diseases: gui_command_buffer.put(("DISEASE", d))

@@ -1,5 +1,4 @@
 import os
-import time
 
 from pathlib import Path
 from datetime import datetime as dt
@@ -13,7 +12,12 @@ DATA_DIR = Path("data")
 TEMP_DIR = DATA_DIR / "temp"
 LOGS_FILE_DIR = "logs.log"
 
-CHROMOSOME_BASE_URL = "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.40_GRCh38.p14/GCF_000001405.40_GRCh38.p14_assembly_structure/Primary_Assembly/assembled_chromosomes/FASTA/"
+DB_PATH = DATA_DIR / "disease_database.db"
+
+MAX_NUCL_LENGTH = 32786
+
+GENOME_VER = "GRCh38"
+CHROMOSOME_BASE_URL = f"https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.40_{GENOME_VER}.p14/GCF_000001405.40_{GENOME_VER}.p14_assembly_structure/Primary_Assembly/assembled_chromosomes/FASTA/"
 
 def log(data):
     timestamp = dt.now().strftime("%d.%m.%Y-%H:%M:%S:%f")[:-3]
