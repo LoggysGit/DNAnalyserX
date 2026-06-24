@@ -16,6 +16,10 @@ DB_PATH = DATA_DIR / "disease_database.db"
 
 MAX_NUCL_LENGTH = 32786
 
+MATCH_SCORE = 2
+MISMATCH_SCORE = -1
+GAP_SCORE = -2
+
 GENOME_VER = "GRCh38"
 CHROMOSOME_BASE_URL = f"https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.40_{GENOME_VER}.p14/GCF_000001405.40_{GENOME_VER}.p14_assembly_structure/Primary_Assembly/assembled_chromosomes/FASTA/"
 

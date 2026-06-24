@@ -25,10 +25,8 @@ class ValidatedNumberEntry(ctk.CTkEntry):
     def resize_max_val(self, val): self.max_val = val
         
     def _validate_input(self, new_value):
-        if new_value == "": 
-            return True
-        if new_value == "-" and self.min_val < 0: 
-            return True
+        if new_value == "": return True
+        if new_value == "-" and self.min_val < 0: return True
             
         if self.allow_float:
             if new_value.endswith(".") and new_value.count(".") == 1:
@@ -164,11 +162,13 @@ class App(ctk.CTk):
         self.tree.heading("position", text="Position")
         self.tree.heading("ref", text="Ref")
         self.tree.heading("alt", text="Alt")
+        self.tree.heading("clnvs", text="CLNVS")
         
         self.tree.column("chr", width=80, anchor="center")
         self.tree.column("position", width=200, anchor="w")
-        self.tree.column("ref", width=100, anchor="center")
-        self.tree.column("alt", width=100, anchor="center")
+        self.tree.column("ref", width=90, anchor="center")
+        self.tree.column("alt", width=90, anchor="center")
+        self.tree.column("clnvs", width=120, anchor="center")
         
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
@@ -285,8 +285,8 @@ class App(ctk.CTk):
                 match command:
                     case "DNA_ANOMALY":
                         try:
-                            pos, ref, alt = payload
-                            self.tree.insert("", "end", values=(f"chr{self.entry_chr.get()}", pos, ref, alt))
+                            pos, clnvs, ref, alt = payload
+                            self.tree.insert("", "end", values=(f"chr{self.entry_chr.get()}", pos, ref, alt, clnvs))
                         except Exception as e: lib.log(f"Error parsing DNA anomaly: {e}.")
 
                     case "DISEASE":
