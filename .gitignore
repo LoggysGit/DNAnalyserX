@@ -8,3 +8,5 @@ venv/
 **/__saved__/
 
 **/temp/*
+
+*.db

@@ -1,4 +1,6 @@
 import numpy as np
+import sqlite3
+
 import modules.lib as lib
 
 class Core:
@@ -105,6 +107,49 @@ class Core:
         return res
     
     def find_mutations(self, dna_anomalies, chromosome_id):
-        diseases = []
-        
-        return diseases
+        full_mutations_data = []
+
+        for anomaly in dna_anomalies:
+            try:
+                position = anomaly[0]
+                ref_allele = anomaly[2]
+                alt_allele = anomaly[3]
+                
+                db_result = self.data_manager.disease_database.find_mutation(
+                    chromosome_id, position, ref_allele, alt_allele
+                )
+                
+                if db_result: clinical_significance, disease_name = db_result
+                else:
+                    clinical_significance = "Benign / Unknown"
+                    disease_name = "Not found"
+
+                full_mutations_data.append([
+                    position,
+                    anomaly[1],
+                    ref_allele,
+                    alt_allele,
+                    clinical_significance,
+                    disease_name
+                ])
+
+            except IndexError as e:
+                lib.log(f"Data format structure indexing error inside anomaly tuple: {e}")
+                continue
+                
+            except sqlite3.Error as e:
+                lib.log(f"Database core engine execution timeout or processing error: {e}")
+                full_mutations_data.append([
+                    anomaly[0] if len(anomaly) > 0 else 0,
+                    anomaly[1] if len(anomaly) > 1 else "Unknown",
+                    anomaly[2] if len(anomaly) > 2 else "-",
+                    anomaly[3] if len(anomaly) > 3 else "-",
+                    "Database Error",
+                    "Database Error"
+                ])
+                
+            except Exception as e:
+                lib.log(f"Unexpected application execution layer runtime error: {e}")
+                continue
+
+        return full_mutations_data

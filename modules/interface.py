@@ -155,7 +155,7 @@ class App(ctk.CTk):
         table_frame = ctk.CTkFrame(workspace_frame, fg_color="transparent")
         table_frame.pack(fill="both", expand=True)
         
-        columns = ("chr", "position", "ref", "alt", "clnvs")
+        columns = ("chr", "position", "ref", "alt", "clnvs", "clnsign", "name")
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings")
         
         self.tree.heading("chr", text="CHR")
@@ -163,12 +163,16 @@ class App(ctk.CTk):
         self.tree.heading("ref", text="Ref")
         self.tree.heading("alt", text="Alt")
         self.tree.heading("clnvs", text="CLNVS")
+        self.tree.heading("clnsign", text="Significance")
+        self.tree.heading("name", text="Disease name")
         
-        self.tree.column("chr", width=50, anchor="center")
-        self.tree.column("position", width=100, anchor="w")
+        self.tree.column("chr", width=10, anchor="center")
+        self.tree.column("position", width=80, anchor="w")
         self.tree.column("ref", width=60, anchor="center")
         self.tree.column("alt", width=60, anchor="center")
-        self.tree.column("clnvs", width=100, anchor="center")
+        self.tree.column("clnvs", width=80, anchor="center")
+        self.tree.column("clnsign", width=90, anchor="center")
+        self.tree.column("name", width=120, anchor="center")
         
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
@@ -283,16 +287,15 @@ class App(ctk.CTk):
                 command, payload = self.command_queue.get_nowait()
 
                 match command:
-                    case "DNA_ANOMALY":
+                    case "MUTATION":
                         try:
-                            pos, clnvs, ref, alt = payload
-                            self.tree.insert("", "end", values=(f"chr{self.entry_chr.get()}", pos, ref, alt, clnvs))
-                        except Exception as e: lib.log(f"Error parsing DNA anomaly: {e}.")
+                            pos, clnvs, ref, alt, sign, name = payload
+                            self.tree.insert("", "end", values=(f"chr{self.entry_chr.get()}", pos, ref, alt, clnvs, sign, name))
+                        except Exception as e: lib.log(f"Error parsing mutation: {e}.")
 
-                    case "DISEASE":
-                        try:
-                            p = payload
-                        except Exception as e: lib.log(f"Error parsing disease: {e}.")
+                    case "DB_UPDATE":
+                        self.btn_analyse.configure(state="disabled")
+                        # Debug
 
                     case "DONE":
                         self.btn_analyse.configure(state="normal")

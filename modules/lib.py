@@ -22,6 +22,7 @@ GAP_SCORE = -2
 
 GENOME_VER = "GRCh38"
 CHROMOSOME_BASE_URL = f"https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.40_{GENOME_VER}.p14/GCF_000001405.40_{GENOME_VER}.p14_assembly_structure/Primary_Assembly/assembled_chromosomes/FASTA/"
+DISEASE_BASE_URL = f"https://ftp.ncbi.nlm.nih.gov/pub/clinvar/tab_delimited/variant_summary.txt.gz"
 
 def log(data):
     timestamp = dt.now().strftime("%d.%m.%Y-%H:%M:%S:%f")[:-3]
