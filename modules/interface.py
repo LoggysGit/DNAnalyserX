@@ -168,11 +168,11 @@ class App(ctk.CTk):
         
         self.tree.column("chr", width=10, anchor="center")
         self.tree.column("position", width=80, anchor="w")
-        self.tree.column("ref", width=60, anchor="center")
-        self.tree.column("alt", width=60, anchor="center")
-        self.tree.column("clnvs", width=80, anchor="center")
-        self.tree.column("clnsign", width=90, anchor="center")
-        self.tree.column("name", width=120, anchor="center")
+        self.tree.column("ref", width=50, anchor="center")
+        self.tree.column("alt", width=50, anchor="center")
+        self.tree.column("clnvs", width=70, anchor="center")
+        self.tree.column("clnsign", width=80, anchor="center")
+        self.tree.column("name", width=130, anchor="center")
         
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)

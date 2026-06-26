@@ -94,9 +94,9 @@ class DiseaseDatabase:
             conn.commit()
 
 class DataManager:
-    def __init__(self, db_path):
+    def __init__(self, db_path, gui_cmds):
         self.db_path = db_path
-        self.disease_database = DiseaseDatabase(db_path)
+        self.disease_database = DiseaseDatabase(db_path, gui_cmds)
 
     def download_chromosome(self, chromosome_id):
         chrom_clean = str(chromosome_id).lower().replace("chr", "").strip()
@@ -206,7 +206,7 @@ class DataManager:
         except Exception as e: lib.log(f"Processing error during database compilation pipeline: {e}")
         # Clear source file
         finally: self.purge_temp()
-        
+
         self.gui_cmd_buffer.put(["DONE", None])
 
     def handle_disease_db_update(self):
