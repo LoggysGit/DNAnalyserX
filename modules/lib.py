@@ -11,10 +11,11 @@ ENV = "win" if os.name == "nt" else "linux"
 DATA_DIR = Path("data")
 TEMP_DIR = DATA_DIR / "temp"
 LOGS_FILE_DIR = "logs.log"
+EXPORT_DIR = "exports"
 
 DB_PATH = DATA_DIR / "disease_database.db"
 
-MAX_NUCL_LENGTH = 50000
+MAX_NUCL_LENGTH = 100000
 
 MATCH_SCORE = 2
 MISMATCH_SCORE = -1
@@ -41,7 +42,13 @@ def open_file(path):
 def gzip_open(path):
     try:
         lib.log(f"Opening GZ file: {path}")
-        with gzip.open(path, "rt", encoding="utf-8") as f: return f.readlines()
+        with gzip.open(path, "rt", encoding="utf-8") as f: lines = f.readlines()
+            
+        if not lines: return ""
+            
+        sequence_lines = [line.strip() for line in lines if not line.startswith(">")]
+        return "".join(sequence_lines)
+        
     except Exception as e:
         lib.log(f"Error opening GZ {path} file: {e}")
-        return []
+        return ""

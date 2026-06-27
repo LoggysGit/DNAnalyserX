@@ -155,9 +155,10 @@ class App(ctk.CTk):
         table_frame = ctk.CTkFrame(workspace_frame, fg_color="transparent")
         table_frame.pack(fill="both", expand=True)
         
-        columns = ("chr", "position", "ref", "alt", "clnvs", "clnsign", "name")
+        columns = ("id", "chr", "position", "ref", "alt", "clnvs", "clnsign", "name")
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings")
         
+        self.tree.heading("id", text="№")
         self.tree.heading("chr", text="CHR")
         self.tree.heading("position", text="Position")
         self.tree.heading("ref", text="Ref")
@@ -166,6 +167,7 @@ class App(ctk.CTk):
         self.tree.heading("clnsign", text="Significance")
         self.tree.heading("name", text="Disease name")
         
+        self.tree.column("id", width=5, anchor="center")
         self.tree.column("chr", width=10, anchor="center")
         self.tree.column("position", width=80, anchor="w")
         self.tree.column("ref", width=50, anchor="center")
@@ -179,6 +181,21 @@ class App(ctk.CTk):
         
         self.tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
+
+        # Export to VCF Button
+        self.btn_export_vcf = ctk.CTkButton(
+            table_frame,
+            text="Export to VCF",
+            width=110,
+            height=28,
+            font=("Arial", 11, "bold"),
+            fg_color=self.ui_colors.get("btn_file_fg", "#242424"),
+            hover_color=self.ui_colors.get("btn_file_hover", "#3a3a3a"),
+            text_color=self.ui_colors["text_main"],
+            corner_radius=6,
+            command=self.export_to_vcf
+        )
+        self.btn_export_vcf.place(relx=1.0, rely=1.0, anchor="se", x=-35, y=-15)
 
         # BOTTOM AREA: Control Panel
         control_panel = ctk.CTkFrame(
@@ -277,9 +294,42 @@ class App(ctk.CTk):
             self.current_file_path = file_path
 
     def run_analysis(self):
+        self.tree.delete(*self.tree.get_children())
         if self.current_file_path:
             self.btn_analyse.configure(state="disabled")
             self.system_command_buffer.put(("RUN", [self.current_file_path, self.entry_chr.get(), self.entry_pos.get()]))
+
+    def export_to_vcf(self):
+        tree_items = self.tree.get_children()
+        if not tree_items: return
+
+        default_filename = f"mutations_{self.entry_chr.get()}_{self.entry_pos.get()}.vcf"
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".vcf",
+            filetypes=[("VCF Files", "*.vcf"), ("All Files", "*.*")],
+            initialfile=default_filename,
+            title="Export Dataset to VCF"
+        )
+        
+        if not file_path: return
+
+        parsed_mutations = []
+        for item_id in tree_items:
+            row_values = self.tree.item(item_id, "values")
+
+            parsed_mutations.append({
+                "id": row_values[0],
+                "chr": row_values[1],
+                "position": row_values[2],
+                "ref": row_values[3],
+                "alt": row_values[4],
+                "clnvs": row_values[5],
+                "clnsign": row_values[6],
+                "name": row_values[7]
+            })
+
+        target_chrom_name = f"chr{self.entry_chr.get()}"
+        self.system_command_buffer.put(("EXPORT", [parsed_mutations, target_chrom_name]))
 
     def read_buffer(self):
         try:
@@ -289,8 +339,8 @@ class App(ctk.CTk):
                 match command:
                     case "MUTATION":
                         try:
-                            pos, clnvs, ref, alt, sign, name = payload
-                            self.tree.insert("", "end", values=(f"chr{self.entry_chr.get()}", pos, ref, alt, clnvs, sign, name))
+                            i, pos, clnvs, ref, alt, sign, name = payload
+                            self.tree.insert("", "end", values=(i, f"chr{self.entry_chr.get()}", pos, ref, alt, clnvs, sign, name))
                         except Exception as e: lib.log(f"Error parsing mutation: {e}.")
 
                     case "DB_UPDATE":

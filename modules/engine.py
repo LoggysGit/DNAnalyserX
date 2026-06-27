@@ -1,7 +1,24 @@
 import numpy as np
+from numba import njit
 import sqlite3
 
 import modules.lib as lib
+
+@njit(fastmath=True)
+def generate_sw_matrix(ref_seq_len, pat_seq_len, ref_seq, patient_seq):
+    sw_matrix = np.zeros((ref_seq_len + 1, pat_seq_len + 1), dtype=np.int32)
+
+    hor_gaps = np.zeros((ref_seq_len + 1, pat_seq_len + 1), dtype=np.int32)
+    ver_gaps = np.zeros((ref_seq_len + 1, pat_seq_len + 1), dtype=np.int32)
+
+    for i in range(1, ref_seq_len + 1):
+        for j in range(1, pat_seq_len + 1):
+            diag_score = lib.MATCH_SCORE if ref_seq[i-1] == patient_seq[j-1] else lib.MISMATCH_SCORE
+            hor_gaps[i][j] = max(sw_matrix[i][j-1] + lib.GAP_OPEN_SCORE, hor_gaps[i][j-1] + lib.GAP_EXT_SCORE)
+            ver_gaps[i][j] = max(sw_matrix[i-1][j] + lib.GAP_OPEN_SCORE, ver_gaps[i-1][j] + lib.GAP_EXT_SCORE)
+            sw_matrix[i][j] = max(0, sw_matrix[i-1][j-1] + diag_score, hor_gaps[i][j], ver_gaps[i][j])
+
+    return sw_matrix, hor_gaps, ver_gaps
 
 class Core:
     def __init__(self, gui_cmd_buff, dman):
@@ -49,6 +66,8 @@ class Core:
         # --- Validation --- #
         if not patient_seq or not ref_seq: return []
 
+        lib.log(f"Ref: {ref_seq_len}, Pat: {pat_seq_len}. Start analyzing...")
+
         ref_seq = ref_seq.replace('N', '\x00')
         patient_seq = patient_seq.replace('N', '\x00')
 
@@ -62,22 +81,8 @@ class Core:
             return []
 
         # --- Algorithm --- #
-        sw_matrix = np.zeros((ref_seq_len + 1, pat_seq_len + 1), dtype=np.int32)
-
-        hor_gaps = np.zeros((ref_seq_len + 1, pat_seq_len + 1), dtype=np.int32)
-        ver_gaps = np.zeros((ref_seq_len + 1, pat_seq_len + 1), dtype=np.int32)
-
-        #traceback = np.zeros((ref_seq_len + 1, pat_seq_len + 1), dtype=np.int32)
-
-        # DP
-        for i in range(1, ref_seq_len + 1):
-            for j in range(1, pat_seq_len + 1):
-                diag_score = lib.MATCH_SCORE if ref_seq[i-1] == patient_seq[j-1] else lib.MISMATCH_SCORE
-
-                hor_gaps[i][j] = max(sw_matrix[i][j-1] + lib.GAP_OPEN_SCORE, hor_gaps[i][j-1] + lib.GAP_EXT_SCORE)
-                ver_gaps[i][j] = max(sw_matrix[i-1][j] + lib.GAP_OPEN_SCORE, ver_gaps[i-1][j] + lib.GAP_EXT_SCORE)
-
-                sw_matrix[i][j] = max(0, sw_matrix[i-1][j-1] + diag_score, hor_gaps[i][j], ver_gaps[i][j])
+        sw_matrix, hor_gaps, ver_gaps = generate_sw_matrix(ref_seq_len, pat_seq_len, ref_seq, patient_seq)
+        lib.log(f"Smith-Waterman matrix build. Extracting...")
 
         # Backtrack
         results = []
@@ -92,31 +97,34 @@ class Core:
             # First priority - Gaps
             if sw_matrix[bi][bj] == ver_gaps[bi][bj]:
                 while bi > 0 and ver_gaps[bi][bj] == ver_gaps[bi-1][bj] + lib.GAP_EXT_SCORE:
-                    results.append([pos + bi - 1, "Deletion", ref_seq[bi-1], "."])
+                    results.append([int(pos + bi - 1), "Deletion", ref_seq[bi-1], "."])
                     bi -= 1
-                results.append([pos + bi - 1, "Deletion", ref_seq[bi-1], "."])
+                results.append([int(pos + bi - 1), "Deletion", ref_seq[bi-1], "."])
                 bi -= 1
                 
             elif sw_matrix[bi][bj] == hor_gaps[bi][bj]:
                 while bj > 0 and hor_gaps[bi][bj] == hor_gaps[bi][bj-1] + lib.GAP_EXT_SCORE:
-                    results.append([pos + bi - 1, "Insertion", ".", patient_seq[bj - 1]])
+                    results.append([int(pos + bi - 1), "Insertion", ".", patient_seq[bj - 1]])
                     bj -= 1
-                results.append([pos + bi - 1, "Insertion", ".", patient_seq[bj - 1]])
+                results.append([int(pos + bi - 1), "Insertion", ".", patient_seq[bj - 1]])
                 bj-= 1
                 
             # Second - mismatch
             elif sw_matrix[bi][bj] == sw_matrix[bi-1][bj-1] + check_score:
-                if check_score != lib.MATCH_SCORE: results.append([pos + bi - 1, "SNP", ref_seq[bi - 1], patient_seq[bj - 1]])
+                if check_score != lib.MATCH_SCORE: results.append([int(pos + bi - 1), "SNP", ref_seq[bi - 1], patient_seq[bj - 1]])
                 bi, bj = bi-1, bj-1
 
             # Endless loop protection
             else: break
+        lib.log(f"Comparsion data extracted. Analyzing algorithm done.")
 
         results.reverse()
+        lib.log(f"Raw results: {results}")
         return self.format_mutation_results(results)
     
     def format_mutation_results(self, raw_res):
         if not raw_res: return []
+        lib.log(f"Result formatting...")
 
         res = []
         # Put first element
@@ -127,7 +135,7 @@ class Core:
 
             stride = len(temp_mut[3]) if temp_mut[1] == "Insertion" else len(temp_mut[2])
             if mutation[0] == temp_mut[0] + stride and mutation[1] == temp_mut[1]:
-                # Don't copy gaps (dots)
+                # Don't save gaps (dots)
                 if mutation[2] != ".": temp_mut[2] += mutation[2]
                 if mutation[3] != ".": temp_mut[3] += mutation[3]
             else:
@@ -140,14 +148,16 @@ class Core:
         if temp_mut[1] == "SNP" and (len(temp_mut[2]) > 1 or len(temp_mut[3]) > 1): temp_mut[1] = "MNP"
         res.append(temp_mut)
 
+        lib.log("Results formatted. Run done.")
         return res
     
     def find_mutations(self, dna_anomalies, chromosome_id):
         full_mutations_data = []
+        lib.log(f"Parsing {len(dna_anomalies)} mutations...")
 
         for anomaly in dna_anomalies:
             try:
-                position = anomaly[0]
+                position = int(anomaly[0])
                 ref_allele = anomaly[2]
                 alt_allele = anomaly[3]
                 
@@ -157,7 +167,7 @@ class Core:
                 
                 if db_result: clinical_significance, disease_name = db_result
                 else:
-                    clinical_significance = "Benign / Unknown"
+                    clinical_significance = "-"
                     disease_name = "Not found"
 
                 full_mutations_data.append([

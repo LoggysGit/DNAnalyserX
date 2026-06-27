@@ -1,4 +1,5 @@
 import os
+import time
 
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -224,3 +225,41 @@ class DataManager:
 
         # Save update timestamp
         self.disease_database.sys_set_last_update_now()
+
+    def save_mutations_to_vcf(self, export_path, mutations_list, reference_name=""):
+        path = Path(export_path)
+
+        header_lines = [
+            "##fileformat=VCFv4.2",
+            f"##fileDate={time.strftime('%Y%m%d')}",
+            "##source=DNAnalyserX_Engine",
+            f"##reference={reference_name}",
+            '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of structural variant">',
+            '##INFO=<ID=SIG,Number=1,Type=String,Description="Clinical significance from ClinVar">',
+            '##INFO=<ID=DIS,Number=1,Type=String,Description="Associated disease name">',
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO"
+        ]
+
+        try:
+            with open(path, "w", encoding="utf-8") as f_out:
+                for header in header_lines: f_out.write(header + "\n")
+
+                for item in mutations_list:
+                    chrom = item.get("chr", ".").strip()
+                    pos = item.get("position", ".").strip()
+                    ref = item.get("ref", ".").strip()
+                    alt = item.get("alt", ".").strip()
+                    clnvs = item.get("clnvs", "UNKNOWN").strip()
+                    significance = item.get("clnsign", "-").strip().replace(" ", "_")
+                    disease_name = item.get("name", "Not_found").strip().replace(" ", "_")
+
+                    info_block = f"SVTYPE={clnvs};SIG={significance};DIS={disease_name}"
+
+                    vcf_row = f"{chrom}\t{pos}\t.\t{ref}\t{alt}\t.\tPASS\t{info_block}\n"
+                    f_out.write(vcf_row)
+
+            lib.log("VCF data exported.")
+            return True
+        except Exception as e:
+            lib.log(f"VCF export execution critical pipeline failure: {e}")
+            return False
