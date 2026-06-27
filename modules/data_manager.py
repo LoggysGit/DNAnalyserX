@@ -15,9 +15,9 @@ class DiseaseDatabase:
     def __init__(self, db_path, gui_cmds):
         self.db_path = db_path
         self.gui_cmd_buffer = gui_cmds
-        self._init_db()
+        self.init_db()
 
-    def _init_db(self):
+    def init_db(self):
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
 
@@ -96,6 +96,7 @@ class DiseaseDatabase:
 class DataManager:
     def __init__(self, db_path, gui_cmds):
         self.db_path = db_path
+        self.gui_cmd_buffer = gui_cmds
         self.disease_database = DiseaseDatabase(db_path, gui_cmds)
 
     def download_chromosome(self, chromosome_id):
@@ -178,11 +179,11 @@ class DataManager:
                     chromosome = tokens[18].strip().lower().replace("chr", "")
                     
                     # Skip unmapped coordinate tracking locations
-                    try: position = int(tokens[30])
+                    try: position = int(tokens[31])
                     except ValueError: continue
                         
-                    ref_allele = tokens[31].strip().upper()
-                    alt_allele = tokens[32].strip().upper()
+                    ref_allele = tokens[32].strip().upper()
+                    alt_allele = tokens[33].strip().upper()
                     clinical_sig = tokens[6].strip()
                     disease_name = tokens[13].strip()
 

@@ -54,6 +54,7 @@ def system_thread():
         
         data_manager.handle_disease_db_update()
 
+#data_manager.update_disease_database()
 if __name__ == "__main__":
     sys_thread = threading.Thread(target=system_thread, daemon=True)
     sys_thread.start()

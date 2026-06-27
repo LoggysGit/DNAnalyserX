@@ -9,6 +9,11 @@ class Core:
         self.gui_command_buffer = gui_cmd_buff
 
     def run_comparing(self, patient_data, reference_data, position):
+        # pos: 1-based genomic coordinate (FASTA standard / VCF format)
+        if position < 1:
+            lib.log("Position must be 1-based")
+            return []
+
         # Parse Patient Data
         if isinstance(patient_data, list):
             clean_lines = [line.strip().upper() for line in patient_data if not line.startswith(">")]
@@ -17,7 +22,7 @@ class Core:
 
         patient_seq_len = len(patient_seq)
 
-        # Hard Check for overflow (Never excess to check double)
+        # Hard Check for overflow
         if patient_seq_len > lib.MAX_NUCL_LENGTH:
             lib.log(f"Patient sequence too long ({patient_seq_len} > {lib.MAX_NUCL_LENGTH}). Skipping.")
             return []
@@ -30,7 +35,7 @@ class Core:
 
         ref_seq = full_ref_str[position - 1:]
         ref_seq_len = len(ref_seq)
-
+        # Cut reference data
         if ref_seq_len > lib.MAX_NUCL_LENGTH:
             ref_seq = ref_seq[:lib.MAX_NUCL_LENGTH]
             ref_seq_len = len(ref_seq)
@@ -41,41 +46,71 @@ class Core:
         return results
     
     def compare_ref(self, pos, patient_seq, ref_seq, pat_seq_len, ref_seq_len):
+        # --- Validation --- #
+        if not patient_seq or not ref_seq: return []
+
+        ref_seq = ref_seq.replace('N', '\x00')
+        patient_seq = patient_seq.replace('N', '\x00')
+
+        if len(ref_seq) != ref_seq_len or len(patient_seq) != pat_seq_len:
+            lib.log(f"Sequence length mismatch")
+            return []
+
+        valid = set('ACGT\x00')
+        if not set(ref_seq).issubset(valid) or not set(patient_seq).issubset(valid):
+            lib.log(f"Invalid nucleotide symbols")
+            return []
+
+        # --- Algorithm --- #
         sw_matrix = np.zeros((ref_seq_len + 1, pat_seq_len + 1), dtype=np.int32)
+
+        hor_gaps = np.zeros((ref_seq_len + 1, pat_seq_len + 1), dtype=np.int32)
+        ver_gaps = np.zeros((ref_seq_len + 1, pat_seq_len + 1), dtype=np.int32)
+
+        #traceback = np.zeros((ref_seq_len + 1, pat_seq_len + 1), dtype=np.int32)
 
         # DP
         for i in range(1, ref_seq_len + 1):
             for j in range(1, pat_seq_len + 1):
-                gapped_v = sw_matrix[i-1][j] + lib.GAP_SCORE
-                gapped_h = sw_matrix[i][j-1] + lib.GAP_SCORE
+                diag_score = lib.MATCH_SCORE if ref_seq[i-1] == patient_seq[j-1] else lib.MISMATCH_SCORE
 
-                diag_score = 0
-                if ref_seq[i-1] == patient_seq[j-1]: diag_score = sw_matrix[i-1][j-1] + lib.MATCH_SCORE
-                else: diag_score = sw_matrix[i-1][j-1] + lib.MISMATCH_SCORE
+                hor_gaps[i][j] = max(sw_matrix[i][j-1] + lib.GAP_OPEN_SCORE, hor_gaps[i][j-1] + lib.GAP_EXT_SCORE)
+                ver_gaps[i][j] = max(sw_matrix[i-1][j] + lib.GAP_OPEN_SCORE, ver_gaps[i-1][j] + lib.GAP_EXT_SCORE)
 
-                sw_matrix[i][j] = max(0, diag_score, gapped_v, gapped_h)
+                sw_matrix[i][j] = max(0, sw_matrix[i-1][j-1] + diag_score, hor_gaps[i][j], ver_gaps[i][j])
 
         # Backtrack
+        results = []
+                
         flat_idx = np.argmax(sw_matrix)
         max_row, max_col = np.unravel_index(flat_idx, sw_matrix.shape)
 
-        results = []
         bi, bj = max_row, max_col
         while bi > 0 and bj > 0 and sw_matrix[bi][bj] > 0:
             check_score = lib.MATCH_SCORE if ref_seq[bi-1] == patient_seq[bj-1] else lib.MISMATCH_SCORE
 
-            if sw_matrix[bi][bj] == sw_matrix[bi-1][bj-1] + check_score:
+            # First priority - Gaps
+            if sw_matrix[bi][bj] == ver_gaps[bi][bj]:
+                while bi > 0 and ver_gaps[bi][bj] == ver_gaps[bi-1][bj] + lib.GAP_EXT_SCORE:
+                    results.append([pos + bi - 1, "Deletion", ref_seq[bi-1], "."])
+                    bi -= 1
+                results.append([pos + bi - 1, "Deletion", ref_seq[bi-1], "."])
+                bi -= 1
+                
+            elif sw_matrix[bi][bj] == hor_gaps[bi][bj]:
+                while bj > 0 and hor_gaps[bi][bj] == hor_gaps[bi][bj-1] + lib.GAP_EXT_SCORE:
+                    results.append([pos + bi - 1, "Insertion", ".", patient_seq[bj - 1]])
+                    bj -= 1
+                results.append([pos + bi - 1, "Insertion", ".", patient_seq[bj - 1]])
+                bj-= 1
+                
+            # Second - mismatch
+            elif sw_matrix[bi][bj] == sw_matrix[bi-1][bj-1] + check_score:
+                if check_score != lib.MATCH_SCORE: results.append([pos + bi - 1, "SNP", ref_seq[bi - 1], patient_seq[bj - 1]])
                 bi, bj = bi-1, bj-1
-                if check_score != lib.MATCH_SCORE:
-                    results.append([pos + bi, "SNP", ref_seq[bi], patient_seq[bj]])
 
-            elif sw_matrix[bi][bj] == sw_matrix[bi-1][bj] + lib.GAP_SCORE:
-                bi, bj = bi-1, bj
-                results.append([pos + bi, "Deletion", ref_seq[bi], "."])
-
-            elif sw_matrix[bi][bj] == sw_matrix[bi][bj-1] + lib.GAP_SCORE:
-                bi, bj = bi, bj-1
-                results.append([pos + bi, "Insertion", ".", patient_seq[bj]])
+            # Endless loop protection
+            else: break
 
         results.reverse()
         return self.format_mutation_results(results)
@@ -90,7 +125,8 @@ class Core:
         for i in range(1, len(raw_res)):
             mutation = raw_res[i]
 
-            if mutation[0] == temp_mut[0] + len(temp_mut[2]) and mutation[1] == temp_mut[1]:
+            stride = len(temp_mut[3]) if temp_mut[1] == "Insertion" else len(temp_mut[2])
+            if mutation[0] == temp_mut[0] + stride and mutation[1] == temp_mut[1]:
                 # Don't copy gaps (dots)
                 if mutation[2] != ".": temp_mut[2] += mutation[2]
                 if mutation[3] != ".": temp_mut[3] += mutation[3]
