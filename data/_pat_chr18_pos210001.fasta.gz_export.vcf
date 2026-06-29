@@ -17,5 +17,6 @@ chr18	210491	.	A	T	.	PASS	SVTYPE=SNP;SIG=-;DIS=Lung_cancer
 chr18	211185	.	T	C	.	PASS	SVTYPE=SNP;SIG=Likely_benign;DIS=not_provided
 chr18	211194	.	G	T	.	PASS	SVTYPE=SNP;SIG=Benign;DIS=not_provided
 chr18	211227	.	C	T	.	PASS	SVTYPE=SNP;SIG=Likely_benign;DIS=not_provided
-chr18	211246	.	CG	TA	.	PASS	SVTYPE=MNP;SIG=-;DIS=Not_found
+chr18	211246	.	C	T	.	PASS	SVTYPE=SNP;SIG=Uncertain_significance;DIS=not_specified
+chr18	211247	.	G	A	.	PASS	SVTYPE=SNP;SIG=Uncertain_significance;DIS=not_specified
 chr18	211262	.	T	A	.	PASS	SVTYPE=SNP;SIG=Uncertain_significance;DIS=not_specified

@@ -134,6 +134,10 @@ if __name__ == "__main__":
     FULL_CHROMOSOME_SEQUENCE = data_man.download_chromosome(chrid)
     print(f"Downloaded file len: {len(FULL_CHROMOSOME_SEQUENCE)}")
 
+    print(f"D-> reference_sequence[210001]: {FULL_CHROMOSOME_SEQUENCE[210001]}")  # что здесь?
+    print(f"D-> reference_sequence[210000]: {FULL_CHROMOSOME_SEQUENCE[210000]}")  # что здесь?
+    print(f"D-> reference_sequence[209999]: {FULL_CHROMOSOME_SEQUENCE[209999]}")  # и здесь?
+
     #print(FULL_CHROMOSOME_SEQUENCE[0:140])
     
     generate_smart_test_dataset(

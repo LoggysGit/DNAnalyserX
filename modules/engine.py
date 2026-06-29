@@ -98,7 +98,7 @@ class Core:
         print(f"-> full_ref_str[210000]: {full_ref_str[210000]}\n-> full_ref_str[210001]: {full_ref_str[210001]}")
 
         # Compare genome and extract VCF data
-        results = self.compare_ref(position, patient_seq, ref_seq, patient_seq_len, ref_seq_len)
+        results = self.compare_ref(position - lib.START_POS_PADDING, patient_seq, ref_seq, patient_seq_len, ref_seq_len)
 
         return results
     
@@ -144,18 +144,14 @@ class Core:
             mutation = raw_res[i]
 
             stride = len(temp_mut[3]) if temp_mut[1] == "Insertion" else len(temp_mut[2])
-            if mutation[0] == temp_mut[0] + stride and mutation[1] == temp_mut[1]:
+            if mutation[0] == temp_mut[0] + stride and mutation[1] == temp_mut[1] and temp_mut[1] != "SNP":
                 # Don't save gaps (dots)
                 if mutation[2] != ".": temp_mut[2] += mutation[2]
                 if mutation[3] != ".": temp_mut[3] += mutation[3]
             else:
-                # Single -> Multiple
-                if temp_mut[1] == "SNP" and (len(temp_mut[2]) > 1 or len(temp_mut[3]) > 1): temp_mut[1] = "MNP"
-
                 res.append(temp_mut)
                 temp_mut = [mutation[0], mutation[1], mutation[2], mutation[3]]
-
-        if temp_mut[1] == "SNP" and (len(temp_mut[2]) > 1 or len(temp_mut[3]) > 1): temp_mut[1] = "MNP"
+                
         res.append(temp_mut)
 
         lib.log("Results formatted. Run done.")
