@@ -94,8 +94,8 @@ class Core:
             ref_seq_len = len(ref_seq)
 
         # ---------------------------------- debug ---------------------------------
-        print(f"Ref[0:5]: {ref_seq[0:5]}, full ref [0:10]: {full_ref_str[0:10]}")
-        print(f"Pat[0:5]: {patient_seq[0:5]}")
+        print(f"-> Ref[0:5]: {ref_seq[0:5]}, full ref [pos-5:pos+5]: {full_ref_str[(position-5):(position+5)]}\n-> Pat[0:5]: {patient_seq[0:5]}")
+        print(f"-> full_ref_str[210000]: {full_ref_str[210000]}\n-> full_ref_str[210001]: {full_ref_str[210001]}")
 
         # Compare genome and extract VCF data
         results = self.compare_ref(position, patient_seq, ref_seq, patient_seq_len, ref_seq_len)

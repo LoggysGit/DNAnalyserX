@@ -110,7 +110,7 @@ class MutationDetailWindow(ctk.CTkToplevel):
         self.lbl_disease = ctk.CTkLabel(
             main_container,
             text=f"Disease: {self.dname}",
-            font=("Arial", 16, "medium"),
+            font=("Arial", 16),
             text_color=self.ui_colors.get("text_main", "#ffffff")
         )
         self.lbl_disease.pack(anchor="w", pady=(0, 4))
@@ -119,7 +119,7 @@ class MutationDetailWindow(ctk.CTkToplevel):
         self.lbl_significance = ctk.CTkLabel(
             main_container,
             text=f"Significance: {self.sign}",
-            font=("Arial", 16, "medium"),
+            font=("Arial", 16),
             text_color=self.ui_colors.get("text_main", "#ffffff")
         )
         self.lbl_significance.pack(anchor="w", pady=(0, 4))
