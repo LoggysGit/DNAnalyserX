@@ -2,34 +2,44 @@ import os
 
 from pathlib import Path
 from datetime import datetime as dt
+
+import configparser
 import gzip
 
 import modules.lib as lib
 
 IS_DEBUG = True
 
+# --- Paths --- #
 ENV = "win" if os.name == "nt" else "linux"
 
 DATA_DIR = Path("data")
 TEMP_DIR = DATA_DIR / "temp"
-LOGS_FILE_DIR = "logs.log"
 EXPORT_DIR = "exports"
+
+LOGS_FILE_DIR = "logs.log"
+CONFIG_DIR = "config.cfg"
 
 DB_PATH = DATA_DIR / "disease_database.db"
 
-MAX_NUCL_LENGTH = 100000
-MAX_INDEL_SIZE = 1000
+# --- Constants --- #
+config = configparser.ConfigParser()
+config.read(CONFIG_DIR)
 
-START_POS_PADDING = 0
+GENOME_VER = config.get('GENERAL', 'GENOME_VER', fallback='GRCh38')
+CHROMOSOME_BASE_URL = config.get('GENERAL', 'CHROMOSOME_BASE_URL')
+DISEASE_BASE_URL = config.get('GENERAL', 'DISEASE_BASE_URL')
 
-MATCH_SCORE = 1
-MISMATCH_SCORE = -3
-GAP_OPEN_SCORE = -5
-GAP_EXT_SCORE = -2
+MAX_NUCL_LENGTH = config.getint('LIMITS', 'MAX_NUCLEOTIDE_LENGTH', fallback=100000)
+MAX_INDEL_SIZE = config.getint('LIMITS', 'MAX_INDEL_SIZE', fallback=1000)
+START_POS_PADDING = config.getint('LIMITS', 'START_NUCL_POS_PADDING', fallback=0)
 
-GENOME_VER = "GRCh38"
-CHROMOSOME_BASE_URL = f"https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.40_{GENOME_VER}.p14/GCF_000001405.40_{GENOME_VER}.p14_assembly_structure/Primary_Assembly/assembled_chromosomes/FASTA/"
-DISEASE_BASE_URL = f"https://ftp.ncbi.nlm.nih.gov/pub/clinvar/tab_delimited/variant_summary.txt.gz"
+MATCH_SCORE = config.getint('SCORING', 'SW_MATCH_SCORE', fallback=1)
+MISMATCH_SCORE = config.getint('SCORING', 'SW_MISMATCH_SCORE', fallback=-3)
+GAP_OPEN_SCORE = config.getint('SCORING', 'SW_GAP_OPEN_SCORE', fallback=-5)
+GAP_EXT_SCORE = config.getint('SCORING', 'SW_GAP_EXTEND_SCORE', fallback=-2)
+
+# --- Functions --- #
 
 def log(data):
     timestamp = dt.now().strftime("%d.%m.%Y-%H:%M:%S:%f")[:-3]
