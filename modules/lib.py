@@ -6,6 +6,8 @@ import gzip
 
 import modules.lib as lib
 
+IS_DEBUG = True
+
 ENV = "win" if os.name == "nt" else "linux"
 
 DATA_DIR = Path("data")
@@ -16,7 +18,7 @@ EXPORT_DIR = "exports"
 DB_PATH = DATA_DIR / "disease_database.db"
 
 MAX_NUCL_LENGTH = 100000
-MAX_INDEL_SIZE = 1500
+MAX_INDEL_SIZE = 1000
 
 START_POS_PADDING = 0
 
@@ -55,3 +57,6 @@ def gzip_open(path):
     except Exception as e:
         lib.log(f"Error opening GZ {path} file: {e}")
         return ""
+    
+def dbg(str):
+    if IS_DEBUG: print(str)

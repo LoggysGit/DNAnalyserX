@@ -129,7 +129,7 @@ data_man = dm.DataManager(lib.DB_PATH, None)
 if __name__ == "__main__":
     DB_FILE = lib.DATA_DIR / "disease_database.db"
     
-    chrid = "18"
+    chrid = "12"
     # Downloads or loads the massive raw chromosome sequence string
     FULL_CHROMOSOME_SEQUENCE = data_man.download_chromosome(chrid)
     print(f"Downloaded file len: {len(FULL_CHROMOSOME_SEQUENCE)}")
@@ -143,7 +143,7 @@ if __name__ == "__main__":
     generate_smart_test_dataset(
         db_path=DB_FILE, 
         chromosome_id=chrid, 
-        start_pos=210001, 
+        start_pos=32879004, 
         reference_sequence=FULL_CHROMOSOME_SEQUENCE,
         length=2000, 
         max_mutations=15

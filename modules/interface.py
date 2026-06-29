@@ -92,12 +92,10 @@ class MutationDetailWindow(ctk.CTkToplevel):
         self.dname = mut[8]
 
     def init_ui(self):
-        # Main outer container padding layout
         main_container = ctk.CTkFrame(self, fg_color="transparent")
         main_container.pack(fill="both", expand=True, padx=20, pady=20)
         
         # --- 1. TOP METADATA BLOCK ---
-        # Title showcasing variant type index (e.g., "CLNVS № 1")
         self.lbl_clnvs_idx = ctk.CTkLabel(
             main_container,
             text=f"{self.vs} № {self.id}",
@@ -115,7 +113,6 @@ class MutationDetailWindow(ctk.CTkToplevel):
         )
         self.lbl_disease.pack(anchor="w", pady=(0, 4))
         
-        # Pathogenic clinical significance description text line
         self.lbl_significance = ctk.CTkLabel(
             main_container,
             text=f"Significance: {self.sign}",
@@ -124,7 +121,6 @@ class MutationDetailWindow(ctk.CTkToplevel):
         )
         self.lbl_significance.pack(anchor="w", pady=(0, 4))
 
-        # Target chromosome alignment track metadata label
         self.lbl_chromosome = ctk.CTkLabel(
             main_container,
             text=f"Chromosome : {self.chrn}",
@@ -134,7 +130,6 @@ class MutationDetailWindow(ctk.CTkToplevel):
         self.lbl_chromosome.pack(anchor="w", pady=(0, 12))
         
         # --- 2. HORIZONTAL COORDINATES PANEL ---
-        # Group descriptor text placed right above the bordered capsule frame
         lbl_position_title = ctk.CTkLabel(
             main_container,
             text="Position",
@@ -143,17 +138,15 @@ class MutationDetailWindow(ctk.CTkToplevel):
         )
         lbl_position_title.pack(anchor="w", pady=(0, 2))
 
-        # Horizontal capsule frame containing Start and End points side-by-side
         coords_frame = ctk.CTkFrame(
             main_container,
             fg_color=self.ui_colors.get("bg_panel", "#242424"),
             border_color=self.ui_colors.get("border", "#3a3a3a"),
             border_width=1,
-            corner_radius=20  # Matches the rounded capsule style from the sketch
+            corner_radius=20
         )
         coords_frame.pack(fill="x", pady=(0, 20))
         
-        # Configure equal grid weight inside the capsule for perfect symmetry
         coords_frame.grid_columnconfigure(0, weight=1)
         coords_frame.grid_columnconfigure(1, weight=1)
         
@@ -173,16 +166,14 @@ class MutationDetailWindow(ctk.CTkToplevel):
         )
         self.lbl_end_pos.grid(row=0, column=1, sticky="w", padx=(10, 20), pady=10)
         
-        # --- 3. ALLELES SEQUENCES SPLIT VIEW (REF / ALT) ---
+        # --- 3. ALLELES SEQUENCES SPLIT VIEW ---
         alleles_container = ctk.CTkFrame(main_container, fg_color="transparent")
         alleles_container.pack(fill="both", expand=True, pady=(0, 15))
         
-        # Dual column matching layouts with explicit uniform sizing constraints
         alleles_container.grid_columnconfigure(0, weight=1, uniform="alleles")
         alleles_container.grid_columnconfigure(1, weight=1, uniform="alleles")
         alleles_container.grid_rowconfigure(1, weight=1)
         
-        # Reference sequence column text header
         lbl_ref_header = ctk.CTkLabel(
             alleles_container,
             text="Ref",
@@ -191,7 +182,6 @@ class MutationDetailWindow(ctk.CTkToplevel):
         )
         lbl_ref_header.grid(row=0, column=0, sticky="w", padx=(5, 5), pady=(0, 4))
         
-        # Alternative sequence column text header
         lbl_alt_header = ctk.CTkLabel(
             alleles_container,
             text="Alt",
@@ -200,7 +190,6 @@ class MutationDetailWindow(ctk.CTkToplevel):
         )
         lbl_alt_header.grid(row=0, column=1, sticky="w", padx=(10, 0), pady=(0, 4))
         
-        # Scrollable textual data blocks providing multi-line sequence fallback
         self.txt_ref = ctk.CTkTextbox(
             alleles_container,
             font=("Consolas", 14),
@@ -485,7 +474,7 @@ class App(ctk.CTk):
             row_values[7],
         ]
 
-        detail_win = MutationDetailWindow(self, self.ui_colors, mock_data)
+        MutationDetailWindow(self, self.ui_colors, mock_data)
 
     def run_analysis(self):
         self.tree.delete(*self.tree.get_children())
