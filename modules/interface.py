@@ -60,6 +60,183 @@ class ValidatedNumberEntry(ctk.CTkEntry):
                 return self.default_val
             return self.min_val
         return float(raw_value) if self.allow_float else int(raw_value)
+    
+class MutationDetailWindow(ctk.CTkToplevel):
+    def __init__(self, parent, ui_colors, mutation):
+        super().__init__(parent)
+        
+        self.ui_colors = ui_colors
+        
+        self.title("Mutation Detailed Information")
+        self.geometry("420x460")
+        self.resizable(False, False)
+        self.configure(fg_color=self.ui_colors.get("bg_main", "#1a1a1a"))
+        
+        self.transient(parent)
+        self.grab_set()
+        
+        if len(mutation) < 8: return
+        self.set_info(mutation)
+
+        self.init_ui()
+
+    def set_info(self, mut):
+        self.id = mut[0]
+        self.chrn = mut[1]
+        self.pos_start = mut[2]
+        self.pos_end = mut[3]
+        self.ref = mut[4]
+        self.alt = mut[5]
+        self.vs = mut[6]
+        self.sign = mut[7]
+        self.dname = mut[8]
+
+    def init_ui(self):
+        # Main outer container padding layout
+        main_container = ctk.CTkFrame(self, fg_color="transparent")
+        main_container.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # --- 1. TOP METADATA BLOCK ---
+        # Title showcasing variant type index (e.g., "CLNVS № 1")
+        self.lbl_clnvs_idx = ctk.CTkLabel(
+            main_container,
+            text=f"{self.vs} № {self.id}",
+            font=("Arial", 28, "bold"),
+            text_color=self.ui_colors.get("text_main", "#ffffff")
+        )
+        self.lbl_clnvs_idx.pack(anchor="w", pady=(0, 4))
+        
+        # Associated clinical disease description text line
+        self.lbl_disease = ctk.CTkLabel(
+            main_container,
+            text=f"Disease: {self.dname}",
+            font=("Arial", 16, "medium"),
+            text_color=self.ui_colors.get("text_main", "#ffffff")
+        )
+        self.lbl_disease.pack(anchor="w", pady=(0, 4))
+        
+        # Pathogenic clinical significance description text line
+        self.lbl_significance = ctk.CTkLabel(
+            main_container,
+            text=f"Significance: {self.sign}",
+            font=("Arial", 16, "medium"),
+            text_color=self.ui_colors.get("text_main", "#ffffff")
+        )
+        self.lbl_significance.pack(anchor="w", pady=(0, 4))
+
+        # Target chromosome alignment track metadata label
+        self.lbl_chromosome = ctk.CTkLabel(
+            main_container,
+            text=f"Chromosome : {self.chrn}",
+            font=("Arial", 15),
+            text_color=self.ui_colors.get("text_muted", "#aaaaaa")
+        )
+        self.lbl_chromosome.pack(anchor="w", pady=(0, 12))
+        
+        # --- 2. HORIZONTAL COORDINATES PANEL ---
+        # Group descriptor text placed right above the bordered capsule frame
+        lbl_position_title = ctk.CTkLabel(
+            main_container,
+            text="Position",
+            font=("Arial", 13, "bold"),
+            text_color=self.ui_colors.get("text_muted", "#aaaaaa")
+        )
+        lbl_position_title.pack(anchor="w", pady=(0, 2))
+
+        # Horizontal capsule frame containing Start and End points side-by-side
+        coords_frame = ctk.CTkFrame(
+            main_container,
+            fg_color=self.ui_colors.get("bg_panel", "#242424"),
+            border_color=self.ui_colors.get("border", "#3a3a3a"),
+            border_width=1,
+            corner_radius=20  # Matches the rounded capsule style from the sketch
+        )
+        coords_frame.pack(fill="x", pady=(0, 20))
+        
+        # Configure equal grid weight inside the capsule for perfect symmetry
+        coords_frame.grid_columnconfigure(0, weight=1)
+        coords_frame.grid_columnconfigure(1, weight=1)
+        
+        self.lbl_start_pos = ctk.CTkLabel(
+            coords_frame,
+            text=f"Start: {self.pos_start}",
+            font=("Arial", 15, "bold"),
+            text_color=self.ui_colors.get("text_main", "#ffffff")
+        )
+        self.lbl_start_pos.grid(row=0, column=0, sticky="w", padx=(20, 10), pady=10)
+        
+        self.lbl_end_pos = ctk.CTkLabel(
+            coords_frame,
+            text=f"End: {self.pos_end}",
+            font=("Arial", 15, "bold"),
+            text_color=self.ui_colors.get("text_main", "#ffffff")
+        )
+        self.lbl_end_pos.grid(row=0, column=1, sticky="w", padx=(10, 20), pady=10)
+        
+        # --- 3. ALLELES SEQUENCES SPLIT VIEW (REF / ALT) ---
+        alleles_container = ctk.CTkFrame(main_container, fg_color="transparent")
+        alleles_container.pack(fill="both", expand=True, pady=(0, 15))
+        
+        # Dual column matching layouts with explicit uniform sizing constraints
+        alleles_container.grid_columnconfigure(0, weight=1, uniform="alleles")
+        alleles_container.grid_columnconfigure(1, weight=1, uniform="alleles")
+        alleles_container.grid_rowconfigure(1, weight=1)
+        
+        # Reference sequence column text header
+        lbl_ref_header = ctk.CTkLabel(
+            alleles_container,
+            text="Ref",
+            font=("Arial", 16, "bold"),
+            text_color=self.ui_colors.get("text_main", "#ffffff")
+        )
+        lbl_ref_header.grid(row=0, column=0, sticky="w", padx=(5, 5), pady=(0, 4))
+        
+        # Alternative sequence column text header
+        lbl_alt_header = ctk.CTkLabel(
+            alleles_container,
+            text="Alt",
+            font=("Arial", 16, "bold"),
+            text_color=self.ui_colors.get("text_main", "#ffffff")
+        )
+        lbl_alt_header.grid(row=0, column=1, sticky="w", padx=(10, 0), pady=(0, 4))
+        
+        # Scrollable textual data blocks providing multi-line sequence fallback
+        self.txt_ref = ctk.CTkTextbox(
+            alleles_container,
+            font=("Consolas", 14),
+            fg_color=self.ui_colors.get("bg_panel", "#242424"),
+            border_color=self.ui_colors.get("border", "#3a3a3a"),
+            border_width=1,
+            corner_radius=8,
+            activate_scrollbars=True
+        )
+        self.txt_ref.grid(row=1, column=0, sticky="nsew", padx=(0, 5))
+        self.txt_ref.insert("1.0", self.ref)
+        
+        self.txt_alt = ctk.CTkTextbox(
+            alleles_container,
+            font=("Consolas", 14),
+            fg_color=self.ui_colors.get("bg_panel", "#242424"),
+            border_color=self.ui_colors.get("border", "#3a3a3a"),
+            border_width=1,
+            corner_radius=8,
+            activate_scrollbars=True
+        )
+        self.txt_alt.grid(row=1, column=1, sticky="nsew", padx=(5, 0))
+        self.txt_alt.insert("1.0", self.alt)
+        
+        # --- 4. BOTTOM DISMISSAL CONTROLS ---
+        btn_close = ctk.CTkButton(
+            main_container,
+            text="Close",
+            height=36,
+            font=("Arial", 12, "bold"),
+            fg_color=self.ui_colors.get("btn_file_fg", "#2d2d2d"),
+            hover_color=self.ui_colors.get("btn_file_hover", "#404040"),
+            text_color=self.ui_colors.get("text_main", "#ffffff"),
+            command=self.destroy
+        )
+        btn_close.pack(fill="x")
 
 class App(ctk.CTk):
     def __init__(self, gui_cmd_buff, sys_cmd_buff, dman):
@@ -143,13 +320,13 @@ class App(ctk.CTk):
         )
         self.lbl_status_filename.pack(side="left")
 
-        self.lbl_status_filesize = ctk.CTkLabel(
-            metadata_center_container, 
-            text="0.0 MB", 
-            font=("Arial", 16),
-            text_color=self.ui_colors["text_muted"]
-        )
-        self.lbl_status_filesize.pack(side="left", padx=12, pady=(4, 0))
+        #self.lbl_status_filesize = ctk.CTkLabel(
+        #    metadata_center_container, 
+        #    text="0.0 MB", 
+        #    font=("Arial", 16),
+        #    text_color=self.ui_colors["text_muted"]
+        #)
+        #self.lbl_status_filesize.pack(side="left", padx=12, pady=(4, 0))
 
         # 3. ANALYSIS OUTPUT CONSOLE
         table_frame = ctk.CTkFrame(workspace_frame, fg_color="transparent")
@@ -178,6 +355,8 @@ class App(ctk.CTk):
         
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
+
+        self.tree.bind("<Double-1>", self.on_tree_double_click)
         
         self.tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
@@ -283,15 +462,30 @@ class App(ctk.CTk):
             
             # Update UI
             self.lbl_file.configure(text=filename, text_color=self.ui_colors["text_main"])
-            
-            file_size_bytes = os.path.getsize(file_path)
-            file_size_mb = file_size_bytes / (1024 * 1024)
-            
             self.lbl_status_filename.configure(text=filename)
-            self.lbl_status_filesize.configure(text=f"{file_size_mb:.1f} MB")
             
             # Save path
             self.current_file_path = file_path
+
+    def on_tree_double_click(self, event):
+        selected_item = self.tree.selection()[0]
+        if not selected_item: return
+
+        row_values = self.tree.item(selected_item, "values")
+
+        mock_data = [
+            row_values[0],
+            row_values[1],
+            row_values[2],
+            str(int(row_values[2]) + len(row_values[3]) - 1),
+            row_values[3],
+            row_values[4],
+            row_values[5],
+            row_values[6],
+            row_values[7],
+        ]
+
+        detail_win = MutationDetailWindow(self, self.ui_colors, mock_data)
 
     def run_analysis(self):
         self.tree.delete(*self.tree.get_children())

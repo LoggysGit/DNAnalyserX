@@ -108,7 +108,21 @@ def generate_smart_test_dataset(db_path, chromosome_id, start_pos, reference_seq
     print(f"Output File: {patient_file_path}")
     print(f"Total Injected: {injected_stats['SNP']} SNPs, {injected_stats['Deletion']} Del, {injected_stats['Insertion']} Ins")
     print("="*50)
-    
+
+    # Verify injections
+    with gzip.open(patient_file_path, "rt") as f:
+        lines = f.readlines()
+        seq = "".join(l.strip() for l in lines if not l.startswith(">"))
+
+    print("\n--- INJECTION VERIFICATION ---")
+    print(f"Window ref [0:5]: {window_reference[0:5]}")
+    print(f"Saved patient[0:5]: {seq[0:5]}")
+    for mut in selected_mutations:
+        local_idx = mut[0] - start_pos
+        if 0 <= local_idx < len(seq):
+            status = "OK" if seq[local_idx] == mut[2] else "FAIL"
+            print(f"[{status}] pos={mut[0]} local={local_idx} got='{seq[local_idx]}' expected='{mut[2]}'")
+
     return patient_file_path
 
 data_man = dm.DataManager(lib.DB_PATH, None)
@@ -120,7 +134,7 @@ if __name__ == "__main__":
     FULL_CHROMOSOME_SEQUENCE = data_man.download_chromosome(chrid)
     print(f"Downloaded file len: {len(FULL_CHROMOSOME_SEQUENCE)}")
 
-    print(FULL_CHROMOSOME_SEQUENCE[0:140])
+    #print(FULL_CHROMOSOME_SEQUENCE[0:140])
     
     generate_smart_test_dataset(
         db_path=DB_FILE, 

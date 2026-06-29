@@ -20,6 +20,41 @@ def generate_sw_matrix(ref_seq_len, pat_seq_len, ref_seq, patient_seq):
 
     return sw_matrix, hor_gaps, ver_gaps
 
+def sw_backtrack(pos, ref_seq, patient_seq, sw_matrix, hor_gaps, ver_gaps):
+    results = []
+
+    flat_idx = np.argmax(sw_matrix)
+    max_row, max_col = np.unravel_index(flat_idx, sw_matrix.shape)
+
+    bi, bj = max_row, max_col
+    while bi > 0 and bj > 0 and sw_matrix[bi][bj] > 0:
+        check_score = lib.MATCH_SCORE if ref_seq[bi-1] == patient_seq[bj-1] else lib.MISMATCH_SCORE
+        # First priority - Gaps
+        if sw_matrix[bi][bj] == ver_gaps[bi][bj]:
+            while bi > 0 and ver_gaps[bi][bj] == ver_gaps[bi-1][bj] + lib.GAP_EXT_SCORE:
+                results.append([int(pos + bi - 1), "Deletion", ref_seq[bi-1], "."])
+                bi -= 1
+            results.append([int(pos + bi - 1), "Deletion", ref_seq[bi-1], "."])
+            bi -= 1
+            
+        elif sw_matrix[bi][bj] == hor_gaps[bi][bj]:
+            while bj > 0 and hor_gaps[bi][bj] == hor_gaps[bi][bj-1] + lib.GAP_EXT_SCORE:
+                results.append([int(pos + bi - 1), "Insertion", ".", patient_seq[bj - 1]])
+                bj -= 1
+            results.append([int(pos + bi - 1), "Insertion", ".", patient_seq[bj - 1]])
+            bj-= 1
+            
+        # Second - mismatch
+        elif sw_matrix[bi][bj] == sw_matrix[bi-1][bj-1] + check_score:
+            if check_score != lib.MATCH_SCORE: results.append([int(pos + bi - 1), "SNP", ref_seq[bi - 1], patient_seq[bj - 1]])
+            bi, bj = bi-1, bj-1
+        # Endless loop protection
+        else:
+            lib.log(f"Backtrack break at bi={bi}, bj={bj}, sw={sw_matrix[bi][bj]}, ver={ver_gaps[bi][bj]}, hor={hor_gaps[bi][bj]}") 
+            break
+
+    return results
+
 class Core:
     def __init__(self, gui_cmd_buff, dman):
         self.data_manager = dman
@@ -53,9 +88,14 @@ class Core:
         ref_seq = full_ref_str[position - 1:]
         ref_seq_len = len(ref_seq)
         # Cut reference data
-        if ref_seq_len > lib.MAX_NUCL_LENGTH:
-            ref_seq = ref_seq[:lib.MAX_NUCL_LENGTH]
+        max_len = patient_seq_len + lib.MAX_INDEL_SIZE
+        if ref_seq_len > max_len:
+            ref_seq = ref_seq[:max_len]
             ref_seq_len = len(ref_seq)
+
+        # ---------------------------------- debug ---------------------------------
+        print(f"Ref[0:5]: {ref_seq[0:5]}, full ref [0:10]: {full_ref_str[0:10]}")
+        print(f"Pat[0:5]: {patient_seq[0:5]}")
 
         # Compare genome and extract VCF data
         results = self.compare_ref(position, patient_seq, ref_seq, patient_seq_len, ref_seq_len)
@@ -84,40 +124,10 @@ class Core:
         sw_matrix, hor_gaps, ver_gaps = generate_sw_matrix(ref_seq_len, pat_seq_len, ref_seq, patient_seq)
         lib.log(f"Smith-Waterman matrix build. Extracting...")
 
-        # Backtrack
-        results = []
-                
-        flat_idx = np.argmax(sw_matrix)
-        max_row, max_col = np.unravel_index(flat_idx, sw_matrix.shape)
-
-        bi, bj = max_row, max_col
-        while bi > 0 and bj > 0 and sw_matrix[bi][bj] > 0:
-            check_score = lib.MATCH_SCORE if ref_seq[bi-1] == patient_seq[bj-1] else lib.MISMATCH_SCORE
-
-            # First priority - Gaps
-            if sw_matrix[bi][bj] == ver_gaps[bi][bj]:
-                while bi > 0 and ver_gaps[bi][bj] == ver_gaps[bi-1][bj] + lib.GAP_EXT_SCORE:
-                    results.append([int(pos + bi - 1), "Deletion", ref_seq[bi-1], "."])
-                    bi -= 1
-                results.append([int(pos + bi - 1), "Deletion", ref_seq[bi-1], "."])
-                bi -= 1
-                
-            elif sw_matrix[bi][bj] == hor_gaps[bi][bj]:
-                while bj > 0 and hor_gaps[bi][bj] == hor_gaps[bi][bj-1] + lib.GAP_EXT_SCORE:
-                    results.append([int(pos + bi - 1), "Insertion", ".", patient_seq[bj - 1]])
-                    bj -= 1
-                results.append([int(pos + bi - 1), "Insertion", ".", patient_seq[bj - 1]])
-                bj-= 1
-                
-            # Second - mismatch
-            elif sw_matrix[bi][bj] == sw_matrix[bi-1][bj-1] + check_score:
-                if check_score != lib.MATCH_SCORE: results.append([int(pos + bi - 1), "SNP", ref_seq[bi - 1], patient_seq[bj - 1]])
-                bi, bj = bi-1, bj-1
-
-            # Endless loop protection
-            else: break
+        results = sw_backtrack(pos, ref_seq, patient_seq, sw_matrix, hor_gaps, ver_gaps)
         lib.log(f"Comparsion data extracted. Analyzing algorithm done.")
 
+        # --- Done --- #
         results.reverse()
         lib.log(f"Raw results: {results}")
         return self.format_mutation_results(results)
