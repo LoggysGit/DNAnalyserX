@@ -77,7 +77,6 @@ class DiseaseDatabase:
             cursor.execute(query, (chrom_clean, position, ref, alt))
             return cursor.fetchone()
         
-    # - Metadata handle functions - #
     def get_last_update_date(self):
         query = "SELECT value FROM db_metadata WHERE key = 'last_update'"
         with sqlite3.connect(self.db_path) as conn:
@@ -258,7 +257,7 @@ class DataManager:
                     vcf_row = f"{chrom}\t{pos}\t.\t{ref}\t{alt}\t.\tPASS\t{info_block}\n"
                     f_out.write(vcf_row)
 
-            lib.log("VCF data exported.")
+            lib.log(f"VCF data exported in {path}.")
             return True
         except Exception as e:
             lib.log(f"VCF export execution critical pipeline failure: {e}")

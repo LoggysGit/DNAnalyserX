@@ -15,7 +15,6 @@ ENV = "win" if os.name == "nt" else "linux"
 
 DATA_DIR = Path("data")
 TEMP_DIR = DATA_DIR / "temp"
-EXPORT_DIR = "exports"
 
 LOGS_FILE_DIR = "logs.log"
 CONFIG_DIR = "config.cfg"

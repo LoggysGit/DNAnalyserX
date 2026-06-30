@@ -1,4 +1,3 @@
-import os
 import queue
 
 import customtkinter as ctk
@@ -289,7 +288,7 @@ class App(ctk.CTk):
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=0)
 
-        # TOP AREA: Workspace Container (File Info + Progress + Treeview)
+        # Workspace Container (File Info + Treeview)
         workspace_frame = ctk.CTkFrame(self, fg_color="transparent")
         workspace_frame.grid(row=0, column=0, sticky="nsew", padx=15, pady=(15, 5))
 
@@ -297,7 +296,6 @@ class App(ctk.CTk):
         file_info_frame = ctk.CTkFrame(workspace_frame, fg_color="transparent")
         file_info_frame.pack(fill="x", pady=(0, 10))
 
-        # Center container to group filename and size horizontally in the middle
         metadata_center_container = ctk.CTkFrame(file_info_frame, fg_color="transparent")
         metadata_center_container.pack(anchor="center")
 
@@ -316,9 +314,18 @@ class App(ctk.CTk):
         columns = ("id", "chr", "position", "ref", "alt", "clnvs", "clnsign", "name")
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings")
 
-        self.tree.tag_configure('in_database', foreground='#ffffff', background='#2e2e2e')
-        self.tree.tag_configure('missing', foreground='#a0a0a0')
+        # Set tree styles
+        self.tree.tag_configure(
+            'in_database', 
+            foreground=self.ui_colors["text_main"], 
+            background=self.ui_colors["border"]
+        )
+        self.tree.tag_configure(
+            'missing', 
+            foreground=self.ui_colors["text_muted"]
+        )
         
+        # Tree headers
         self.tree.heading("id", text="№")
         self.tree.heading("chr", text="CHR")
         self.tree.heading("position", text="Position")
@@ -392,7 +399,7 @@ class App(ctk.CTk):
         )
         self.lbl_file.pack(side="left", padx=5, pady=15)
 
-        # Central container for coordinates input
+        # Coordinates input frame
         inputs_frame = ctk.CTkFrame(control_panel, fg_color="transparent")
         inputs_frame.pack(side="left", expand=True, pady=15)
 
@@ -481,11 +488,9 @@ class App(ctk.CTk):
         tree_items = self.tree.get_children()
         if not tree_items: return
 
-        default_filename = f"mutations_{self.entry_chr.get()}_{self.entry_pos.get()}.vcf"
         file_path = filedialog.asksaveasfilename(
             defaultextension=".vcf",
             filetypes=[("VCF Files", "*.vcf"), ("All Files", "*.*")],
-            initialfile=default_filename,
             title="Export Dataset to VCF"
         )
         
@@ -507,7 +512,7 @@ class App(ctk.CTk):
             })
 
         target_chrom_name = f"chr{self.entry_chr.get()}"
-        self.system_command_buffer.put(("EXPORT", [parsed_mutations, target_chrom_name]))
+        self.system_command_buffer.put(("EXPORT", [parsed_mutations, target_chrom_name, file_path]))
 
     def read_buffer(self):
         try:
@@ -519,7 +524,10 @@ class App(ctk.CTk):
                         try:
                             i, pos, clnvs, ref, alt, sign, name = payload
                             tag = "missing" if name == "Not found" else "in_database"
-                            self.tree.insert("", "end", values=(i, f"chr{self.entry_chr.get()}", pos, ref, alt, clnvs, sign, name), tags=(tag,))
+                            self.tree.insert("", "end", 
+                                values=(i, f"chr{self.entry_chr.get()}", pos, ref, alt, clnvs, sign, name), 
+                                tags=(tag)
+                            )
                         except Exception as e: lib.log(f"Error parsing mutation: {e}.")
 
                     case "DB_UPDATE":
