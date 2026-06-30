@@ -458,7 +458,7 @@ class App(ctk.CTk):
             # Save path
             self.current_file_path = file_path
 
-    def on_tree_double_click(self, event):
+    def on_tree_double_click(self):
         selected_item = self.tree.selection()[0]
         if not selected_item: return
 

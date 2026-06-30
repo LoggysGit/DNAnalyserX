@@ -82,7 +82,7 @@ class Core:
         self.gui_command_buffer = gui_cmd_buff
 
     def run_comparing(self, patient_data, reference_data, position):
-        # pos: 1-based genomic coordinate (FASTA standard / VCF format)
+        # pos: 1-based genomic coordinate
         if position < 1:
             lib.log("Position must be 1-based")
             return []
@@ -117,13 +117,6 @@ class Core:
         if ref_seq_len > max_len:
             ref_seq = ref_seq[:max_len]
             ref_seq_len = len(ref_seq)
-
-        adjusted_pos = position - lib.START_POS_PADDING
-        window_start = 32750885
-        window_end = 32750900
-        dbgs, dbge = window_start - adjusted_pos, window_end - adjusted_pos
-        lib.dbg(f"ref_seq window: {ref_seq[dbgs:dbge]}")
-        lib.dbg(f"patient_seq window: {patient_seq[dbgs:dbge]}")
 
         results = self.compare_ref(
             position - lib.START_POS_PADDING,
@@ -162,7 +155,7 @@ class Core:
 
         # --- Done --- #
         results.reverse()
-        lib.log(f"Raw results: {results}")
+        lib.dbg(f"Raw results: {results}")
         return self.format_mutation_results(results, ref_seq, pos)
     
     def format_mutation_results(self, raw_res, ref_seq, window_start_pos):

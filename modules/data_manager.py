@@ -52,6 +52,8 @@ class DiseaseDatabase:
             
             conn.commit()
 
+            lib.log("Disease database initialized.")
+
     def insert_mutation_batch(self, batch_data):
         query = """
             INSERT OR REPLACE INTO clinvar_mutations (
@@ -79,10 +81,12 @@ class DiseaseDatabase:
         
     def get_last_update_date(self):
         query = "SELECT value FROM db_metadata WHERE key = 'last_update'"
+
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(query)
             row = cursor.fetchone()
+
             return row[0] if row else None
 
     def sys_set_last_update_now(self):
@@ -106,7 +110,7 @@ class DataManager:
         os.makedirs(lib.TEMP_DIR, exist_ok=True)
         target_path = os.path.join(lib.TEMP_DIR, f"chr{chrom_clean}.fasta.gz")
         
-        lib.log(f"Downloading chromosome #{chromosome_id}...")
+        lib.log(f"Downloading chromosome №{chromosome_id}...")
 
         try:
             response = requests.get(url, stream=True, timeout=30)
@@ -178,7 +182,7 @@ class DataManager:
                     mut_type = tokens[1].strip()
                     chromosome = tokens[18].strip().lower().replace("chr", "")
                     
-                    # Skip unmapped coordinate tracking locations
+                    # Skip unmapped
                     try: position = int(tokens[31])
                     except ValueError: continue
                         
@@ -219,7 +223,7 @@ class DataManager:
             if datetime.now().date() - last_update < timedelta(days=7): return
 
         # Update DB
-        lib.log("Weekly update threshold reached. Initializing pipeline...")
+        lib.log("Weekly DB update threshold reached. Initializing pipeline...")
         self.update_disease_database()
 
         # Save update timestamp
@@ -259,6 +263,7 @@ class DataManager:
 
             lib.log(f"VCF data exported in {path}.")
             return True
+        
         except Exception as e:
             lib.log(f"VCF export execution critical pipeline failure: {e}")
             return False

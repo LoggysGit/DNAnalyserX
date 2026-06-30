@@ -8,7 +8,7 @@ import gzip
 
 import modules.lib as lib
 
-IS_DEBUG = True
+IS_DEBUG = False
 
 # --- Paths --- #
 ENV = "win" if os.name == "nt" else "linux"
@@ -42,13 +42,14 @@ GAP_EXT_SCORE = config.getint('SCORING', 'SW_GAP_EXTEND_SCORE', fallback=-2)
 
 def log(data):
     timestamp = dt.now().strftime("%d.%m.%Y-%H:%M:%S:%f")[:-3]
-    with open(LOGS_FILE_DIR, 'a', encoding="utf-8") as f: f.write(f"{timestamp} {data}\n")
+    with open(LOGS_FILE_DIR, 'a', encoding="utf-8") as f: f.write(f"{timestamp} | {data}\n")
     print(data)
 
 def open_file(path):
     try:
         lib.log(f"Opening file: {path}")
         with open(path, 'r', encoding="utf-8") as f: return f.readlines()
+
     except Exception as e: 
         lib.log(f"Error opening {path} file: {e}")
         return []

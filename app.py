@@ -36,7 +36,7 @@ def system_thread():
                     gui_command_buffer.put(("DONE", None))
                     break
 
-                # Anaalyze & Send
+                # Anaalyze
                 results = core.run_comparing(selected_file_data, chr_data, int(pos))
 
                 # Purge temp
@@ -44,10 +44,11 @@ def system_thread():
 
                 # Seek for diseases
                 full_mutations_data = core.find_mutations(results, chrm)
-                i = 0
-                for d in full_mutations_data:
-                    i += 1
-                    d.insert(0, i)
+
+                # Send into interface
+                for i in range(len(full_mutations_data)):
+                    d = full_mutations_data[i]
+                    d.insert(0, (i+1))
                     gui_command_buffer.put(("MUTATION", d))
 
                 gui_command_buffer.put(("DONE", None))
