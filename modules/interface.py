@@ -309,20 +309,15 @@ class App(ctk.CTk):
         )
         self.lbl_status_filename.pack(side="left")
 
-        #self.lbl_status_filesize = ctk.CTkLabel(
-        #    metadata_center_container, 
-        #    text="0.0 MB", 
-        #    font=("Arial", 16),
-        #    text_color=self.ui_colors["text_muted"]
-        #)
-        #self.lbl_status_filesize.pack(side="left", padx=12, pady=(4, 0))
-
         # 3. ANALYSIS OUTPUT CONSOLE
         table_frame = ctk.CTkFrame(workspace_frame, fg_color="transparent")
         table_frame.pack(fill="both", expand=True)
         
         columns = ("id", "chr", "position", "ref", "alt", "clnvs", "clnsign", "name")
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings")
+
+        self.tree.tag_configure('in_database', foreground='#ffffff', background='#2e2e2e')
+        self.tree.tag_configure('missing', foreground='#a0a0a0')
         
         self.tree.heading("id", text="№")
         self.tree.heading("chr", text="CHR")
@@ -523,7 +518,8 @@ class App(ctk.CTk):
                     case "MUTATION":
                         try:
                             i, pos, clnvs, ref, alt, sign, name = payload
-                            self.tree.insert("", "end", values=(i, f"chr{self.entry_chr.get()}", pos, ref, alt, clnvs, sign, name))
+                            tag = "missing" if name == "Not found" else "in_database"
+                            self.tree.insert("", "end", values=(i, f"chr{self.entry_chr.get()}", pos, ref, alt, clnvs, sign, name), tags=(tag,))
                         except Exception as e: lib.log(f"Error parsing mutation: {e}.")
 
                     case "DB_UPDATE":

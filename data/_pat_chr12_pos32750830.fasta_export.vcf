@@ -1,0 +1,14 @@
+##fileformat=VCFv4.2
+##fileDate=20260630
+##source=DNAnalyserX_Engine
+##reference=chr12
+##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of structural variant">
+##INFO=<ID=SIG,Number=1,Type=String,Description="Clinical significance from ClinVar">
+##INFO=<ID=DIS,Number=1,Type=String,Description="Associated disease name">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO
+chr12	32750893	.	A	AG	.	PASS	SVTYPE=Insertion;SIG=-;DIS=Not_found
+chr12	32750982	.	C	A	.	PASS	SVTYPE=SNP;SIG=-;DIS=Sarcoma
+chr12	32751084	.	T	TT	.	PASS	SVTYPE=Insertion;SIG=-;DIS=Not_found
+chr12	32751087	.	A	G	.	PASS	SVTYPE=SNP;SIG=Likely_benign;DIS=not_provided
+chr12	32751135	.	T	C	.	PASS	SVTYPE=SNP;SIG=Likely_benign;DIS=not_provided
+chr12	32751155	.	C	T	.	PASS	SVTYPE=SNP;SIG=Benign;DIS=not_provided

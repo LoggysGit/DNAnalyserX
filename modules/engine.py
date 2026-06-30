@@ -212,21 +212,24 @@ class Core:
             full_ref_str = "".join(clean_ref_lines)
         else: full_ref_str = reference_data.strip().upper()
 
+        # Add padding
+        padding_seq = full_ref_str[position - lib.START_POS_PADDING - 1 : position - 1]
+        patient_seq = padding_seq + patient_seq
+        patient_seq_len = len(patient_seq)
+
         ref_seq = full_ref_str[position - lib.START_POS_PADDING - 1:]
         ref_seq_len = len(ref_seq)
-        # Cut reference data
         max_len = patient_seq_len + lib.MAX_INDEL_SIZE
         if ref_seq_len > max_len:
             ref_seq = ref_seq[:max_len]
             ref_seq_len = len(ref_seq)
 
-        # Compare genome and extract VCF data
         results = self.compare_ref(
             position - lib.START_POS_PADDING,
-            patient_seq, # Expand user data with reference
+            patient_seq,
             ref_seq,
-            patient_seq_len + lib.START_POS_PADDING,
-            ref_seq_len + lib.START_POS_PADDING
+            patient_seq_len,
+            ref_seq_len
         )
 
         return results
@@ -252,16 +255,16 @@ class Core:
         # --- Algorithm --- #
         sw_matrix, hor_gaps, ver_gaps = generate_sw_matrix(ref_seq_len, pat_seq_len, ref_seq, patient_seq)
         lib.log(f"Smith-Waterman matrix build. Extracting...")
-        show_matrix_window(sw_matrix)
+        #show_matrix_window(sw_matrix)
         results = sw_backtrack(pos, ref_seq, patient_seq, sw_matrix, hor_gaps, ver_gaps)
         lib.log(f"Comparsion data extracted. Analyzing algorithm done.")
 
         # --- Done --- #
         results.reverse()
         lib.log(f"Raw results: {results}")
-        return self.format_mutation_results(results)
+        return self.format_mutation_results(results, ref_seq, pos)
     
-    def format_mutation_results(self, raw_res):
+    def format_mutation_results(self, raw_res, ref_seq, window_start_pos):
         if not raw_res: return []
         lib.log(f"Result formatting...")
 
@@ -279,6 +282,21 @@ class Core:
                 temp_mut = [mutation[0], mutation[1], mutation[2], mutation[3]]
 
         res.append(temp_mut)
+
+        # Anchor convention for indels
+        for mut in res:
+            if mut[1] in ("Deletion", "Insertion"):
+                anchor_idx = mut[0] - window_start_pos - 1
+                if 0 <= anchor_idx < len(ref_seq):
+                    anchor = ref_seq[anchor_idx]
+                    mut[0] = mut[0] - 1
+                    if mut[1] == "Deletion":
+                        mut[2] = anchor + mut[2]
+                        mut[3] = anchor
+                    else:  # Insertion
+                        mut[2] = anchor
+                        mut[3] = anchor + mut[3]
+
         lib.log("Results formatted. Run done.")
         return res
     
