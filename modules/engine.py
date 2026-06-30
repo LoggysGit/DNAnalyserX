@@ -52,9 +52,9 @@ def sw_backtrack(pos, ref_seq, patient_seq, sw_matrix, hor_gaps, ver_gaps, trace
         if ptr == 1:  # diagonal
             check_score = lib.MATCH_SCORE if ref_seq[bi-1] == patient_seq[bj-1] else lib.MISMATCH_SCORE
             if check_score != lib.MATCH_SCORE:
-                results.append([int(pos + bi - 1), "SNP", ref_seq[bi - 1], patient_seq[bj - 1]])
+                results.append([int(pos + bi - 1), "SNV", ref_seq[bi - 1], patient_seq[bj - 1]])
             bi, bj = bi-1, bj-1
-            
+
         elif ptr == 2:  # vertical
             while bi > 0 and traceback[bi][bj] == 2 and ver_gaps[bi][bj] == ver_gaps[bi-1][bj] + lib.GAP_EXT_SCORE:
                 results.append([int(pos + bi - 1), "Deletion", ref_seq[bi-1], "."])
@@ -117,6 +117,13 @@ class Core:
         if ref_seq_len > max_len:
             ref_seq = ref_seq[:max_len]
             ref_seq_len = len(ref_seq)
+
+        adjusted_pos = position - lib.START_POS_PADDING
+        window_start = 32750885
+        window_end = 32750900
+        dbgs, dbge = window_start - adjusted_pos, window_end - adjusted_pos
+        lib.dbg(f"ref_seq window: {ref_seq[dbgs:dbge]}")
+        lib.dbg(f"patient_seq window: {patient_seq[dbgs:dbge]}")
 
         results = self.compare_ref(
             position - lib.START_POS_PADDING,

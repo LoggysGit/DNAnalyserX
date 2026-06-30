@@ -488,10 +488,12 @@ class App(ctk.CTk):
         tree_items = self.tree.get_children()
         if not tree_items: return
 
+        default_filename = f"mutations_{self.entry_chr.get()}_{self.entry_pos.get()}_export.vcf"
         file_path = filedialog.asksaveasfilename(
             defaultextension=".vcf",
             filetypes=[("VCF Files", "*.vcf"), ("All Files", "*.*")],
-            title="Export Dataset to VCF"
+            initialfile=default_filename,
+            title="Export Analysis"
         )
         
         if not file_path: return

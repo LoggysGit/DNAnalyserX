@@ -1,6 +1,3 @@
-import os
-from pathlib import Path
-
 import queue
 import threading
 
@@ -15,8 +12,6 @@ sys_command_buffer = queue.Queue()
 data_manager = dataManager.DataManager(lib.DB_PATH, gui_command_buffer)
 core = engine.Core(gui_command_buffer, data_manager)
 app = gui.App(gui_command_buffer, sys_command_buffer, data_manager)
-
-last_file_path = ""
 
 def system_thread():
     while True:
@@ -34,8 +29,6 @@ def system_thread():
                 if file_path.endswith(".gz"): selected_file_data = lib.gzip_open(file_path)
                 else: selected_file_data = lib.open_file(file_path, "r")
                 chr_data = data_manager.download_chromosome(chrm)
-
-                last_file_path = Path(file_path).name.split('.')[0]
 
                 # Check
                 if len(selected_file_data) > lib.MAX_NUCL_LENGTH:
@@ -62,10 +55,7 @@ def system_thread():
 
             case "EXPORT":
                 mut_list, chr_ref, exp_dir = payload
-                exp_path = os.path.join(exp_dir, f"{last_file_path}_export.vcf")
-                
-                lib.dbg(f"Export path: {exp_path}")
-                data_manager.save_mutations_to_vcf(exp_path, mut_list, chr_ref)
+                data_manager.save_mutations_to_vcf(exp_dir, mut_list, chr_ref)
 
             case _: pass
         
