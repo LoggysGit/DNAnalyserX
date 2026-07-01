@@ -153,8 +153,7 @@ class Core:
         results = sw_backtrack(pos, ref_seq, patient_seq, sw_matrix, hor_gaps, ver_gaps, traceback)
         lib.log(f"Comparsion data extracted. Analyzing algorithm done.")
 
-        # --- Done --- #
-        results.reverse()
+        # --- Done --- #
         lib.dbg(f"Raw results: {results}")
         return self.format_mutation_results(results, ref_seq, pos)
     
