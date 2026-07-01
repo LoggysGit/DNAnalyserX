@@ -44,6 +44,7 @@ def system_thread():
 
                 # Seek for diseases
                 full_mutations_data = core.find_mutations(results, chrm)
+                full_mutations_data.sort(key=lambda r: r[0])
 
                 # Send into interface
                 for i in range(len(full_mutations_data)):
