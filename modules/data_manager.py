@@ -138,7 +138,7 @@ class DataManager:
 
                 lib.log("Temporary data buffer purged successfully.")
 
-            except Exception as e: lib.log(f"Execution handling error during directory cleanup: {e}")
+            except Exception as e: lib.log(f"Cleanup error: {e}")
 
     def update_disease_database(self):
         os.makedirs(lib.TEMP_DIR, exist_ok=True)
@@ -154,12 +154,12 @@ class DataManager:
             with open(target_path, "wb") as f_bin:
                 for chunk in response.iter_content(chunk_size=1024 * 64):
                     if chunk: f_bin.write(chunk)
-            lib.log("ClinVar archive downloaded successfully.")
+            lib.log("ClinVar database downloaded successfully.")
         except Exception as e:
-            lib.log(f"Failed to download ClinVar update archive: {e}")
+            lib.log(f"Failed to download ClinVar database: {e}")
             return
 
-        lib.log("Beginning parsing pipeline into SQLite...")
+        lib.log("Parsing into SQLite DB...")
         batch = []
         batch_size = 50000
         records_processed = 0
@@ -199,7 +199,7 @@ class DataManager:
                     if len(batch) >= batch_size:
                         self.disease_database.insert_mutation_batch(batch)
                         records_processed += len(batch)
-                        lib.log(f"Parsed and integrated {records_processed} target entries...")
+                        lib.log(f"Parsed and integrated {records_processed} objects...")
                         batch = []
 
                 # Insert into DB
@@ -208,7 +208,7 @@ class DataManager:
                     records_processed += len(batch)
 
             lib.log(f"Database generation completed. Integrated {records_processed} variants.")
-        except Exception as e: lib.log(f"Processing error during database compilation pipeline: {e}")
+        except Exception as e: lib.log(f"Processing error: {e}")
         # Clear source file
         finally: self.purge_temp()
 
@@ -223,7 +223,7 @@ class DataManager:
             if datetime.now().date() - last_update < timedelta(days=7): return
 
         # Update DB
-        lib.log("Weekly DB update threshold reached. Initializing pipeline...")
+        lib.log("Weekly DB update threshold reached. Initializing update...")
         self.update_disease_database()
 
         # Save update timestamp
@@ -265,5 +265,5 @@ class DataManager:
             return True
         
         except Exception as e:
-            lib.log(f"VCF export execution critical pipeline failure: {e}")
+            lib.log(f"VCF export critical failure: {e}")
             return False

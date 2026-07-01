@@ -73,7 +73,6 @@ def sw_backtrack(pos, ref_seq, patient_seq, sw_matrix, hor_gaps, ver_gaps, trace
             lib.dbg(f"Backtrack stop at bi={bi}, bj={bj}, ptr={ptr}")
             break
 
-    results.sort(key=lambda r: r[0])
     return results
 
 class Core:
@@ -87,7 +86,7 @@ class Core:
             lib.log("Position must be 1-based")
             return []
 
-        # Parse Patient Data
+        # Parse Patient Data (List & String support)
         if isinstance(patient_data, list):
             clean_lines = [line.strip().upper() for line in patient_data if not line.startswith(">")]
             patient_seq = "".join(clean_lines)
@@ -100,7 +99,7 @@ class Core:
             lib.log(f"Patient sequence too long ({patient_seq_len} > {lib.MAX_NUCL_LENGTH}). Skipping.")
             return []
 
-        # Parse Reference Data
+        # Parse Reference Data (List & String support)
         if isinstance(reference_data, list):
             clean_ref_lines = [line.strip().upper() for line in reference_data if not line.startswith(">")]
             full_ref_str = "".join(clean_ref_lines)
@@ -113,6 +112,7 @@ class Core:
 
         ref_seq = full_ref_str[position - lib.START_POS_PADDING - 1:]
         ref_seq_len = len(ref_seq)
+
         max_len = patient_seq_len + lib.MAX_INDEL_SIZE
         if ref_seq_len > max_len:
             ref_seq = ref_seq[:max_len]
@@ -134,8 +134,8 @@ class Core:
 
         lib.log(f"Ref: {ref_seq_len}, Pat: {pat_seq_len}. Start analyzing...")
 
-        ref_seq = ref_seq.replace('N', '\x00')
-        patient_seq = patient_seq.replace('N', '\x00')
+        #ref_seq = ref_seq.replace('N', '\x00')
+        #patient_seq = patient_seq.replace('N', '\x00')
 
         if len(ref_seq) != ref_seq_len or len(patient_seq) != pat_seq_len:
             lib.log(f"Sequence length mismatch")
@@ -153,7 +153,8 @@ class Core:
         results = sw_backtrack(pos, ref_seq, patient_seq, sw_matrix, hor_gaps, ver_gaps, traceback)
         lib.log(f"Comparsion data extracted. Analyzing algorithm done.")
 
-        # --- Done --- #
+        # --- Done --- #
+        results.reverse()
         lib.dbg(f"Raw results: {results}")
         return self.format_mutation_results(results, ref_seq, pos)
     
@@ -167,7 +168,7 @@ class Core:
         for i in range(1, len(raw_res)):
             mutation = raw_res[i]
             stride = len(temp_mut[3]) if temp_mut[1] == "Insertion" else len(temp_mut[2])
-            if mutation[0] == temp_mut[0] + stride and mutation[1] == temp_mut[1] and temp_mut[1] != "SNP":
+            if mutation[0] == temp_mut[0] + stride and mutation[1] == temp_mut[1] and temp_mut[1] != "SNV":
                 if mutation[2] != ".": temp_mut[2] += mutation[2]
                 if mutation[3] != ".": temp_mut[3] += mutation[3]
             else:
@@ -222,11 +223,11 @@ class Core:
                 ])
 
             except IndexError as e:
-                lib.log(f"Data format structure indexing error inside anomaly tuple: {e}")
+                lib.log(f"Data format structure error: {e}")
                 continue
                 
             except sqlite3.Error as e:
-                lib.log(f"Database core engine execution timeout or processing error: {e}")
+                lib.log(f"Database core engine error: {e}")
                 full_mutations_data.append([
                     anomaly[0] if len(anomaly) > 0 else 0,
                     anomaly[1] if len(anomaly) > 1 else "Unknown",
@@ -237,7 +238,7 @@ class Core:
                 ])
                 
             except Exception as e:
-                lib.log(f"Unexpected application execution layer runtime error: {e}")
+                lib.log(f"Unexpected application error: {e}")
                 continue
 
         return full_mutations_data
