@@ -1,3 +1,6 @@
+import os
+import re
+
 import queue
 
 import customtkinter as ctk
@@ -5,61 +8,6 @@ from tkinter import ttk, filedialog
 
 import modules.lib as lib
 
-class ValidatedNumberEntry(ctk.CTkEntry):
-    def __init__(self, master, min_val=0, max_val=100, allow_float=False, default_val=None, **kwargs):
-        if default_val is not None and "placeholder_text" not in kwargs: 
-            kwargs["placeholder_text"] = str(default_val)
-            
-        super().__init__(master, **kwargs)
-        self.min_val = min_val
-        self.max_val = max_val
-        self.allow_float = allow_float
-        self.default_val = default_val
-        
-        vcmd = (self.register(self._validate_input), '%P')
-        self.configure(validate="key", validatecommand=vcmd)
-        self.bind("<FocusOut>", self._on_focus_out)
-
-    def resize_min_val(self, val): self.min_val = val
-    def resize_max_val(self, val): self.max_val = val
-        
-    def _validate_input(self, new_value):
-        if new_value == "": return True
-        if new_value == "-" and self.min_val < 0: return True
-            
-        if self.allow_float:
-            if new_value.endswith(".") and new_value.count(".") == 1:
-                try:
-                    base = new_value[:-1]
-                    if base == "" or base == "-": 
-                        return True
-                    return self.min_val <= float(base) <= self.max_val
-                except ValueError: 
-                    return False
-            try: 
-                return self.min_val <= float(new_value) <= self.max_val
-            except ValueError: 
-                return False
-        else:
-            if not new_value.lstrip('-').isdigit(): 
-                return False
-            return self.min_val <= int(new_value) <= self.max_val
-        
-    def _on_focus_out(self, event):
-        raw_value = self.get()
-        if raw_value == "" or raw_value == "-":
-            if self.default_val is not None:
-                self.delete(0, "end")
-                self.insert(0, str(self.default_val))
-
-    def get_val(self):
-        raw_value = self.get()
-        if raw_value == "" or raw_value == "-":
-            if self.default_val is not None: 
-                return self.default_val
-            return self.min_val
-        return float(raw_value) if self.allow_float else int(raw_value)
-    
 class MutationDetailWindow(ctk.CTkToplevel):
     def __init__(self, parent, ui_colors, mutation):
         super().__init__(parent)
@@ -234,8 +182,105 @@ class InfoWindow(ctk.CTkToplevel):
         self.md_file_path = md_path
                 
         self.title("Information")
-        self.geometry("500x350")
+        self.geometry("700x500")
+        self.resizable(True, True)
+        
+        self.transient(parent)
+        self.grab_set()
+
+        self.init_ui()
+        self.render_md()
+
+    def init_ui(self):
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+
+        self.textbox = ctk.CTkTextbox(
+            self,
+            font=("Arial", 13),
+            fg_color=self.ui_colors.get("bg_panel", "#1e1e1e"),
+            text_color=self.ui_colors.get("text_main", "#ffffff"),
+            border_color=self.ui_colors.get("border", "#3a3a3a"),
+            border_width=1,
+            wrap="word"
+        )
+        self.textbox.grid(row=0, column=0, sticky="nsew", padx=15, pady=15)
+
+        self.textbox._textbox.tag_configure("H1", font=("Arial", 22, "bold"), foreground=self.ui_colors.get("btn_run_fg", "#ffffff"))
+        self.textbox._textbox.tag_configure("H2", font=("Arial", 18, "bold"), foreground=self.ui_colors.get("text_main", "#ffffff"))
+        self.textbox._textbox.tag_configure("H3", font=("Arial", 15, "bold"), foreground=self.ui_colors.get("text_main", "#ffffff"))
+        self.textbox._textbox.tag_configure("BOLD", font=("Arial", 13, "bold"))
+        self.textbox._textbox.tag_configure("BULLET", foreground=self.ui_colors.get("btn_run_fg", "#ffffff"))
+        self.textbox._textbox.tag_configure("NORMAL", font=("Arial", 13))
+
+    def render_md(self):
+        if not os.path.exists(self.md_file_path):
+            self.textbox.insert("end", f"Error: Markdown file not found at path:\n{self.md_file_path}")
+            self.textbox.configure(state="disabled")
+            return
+
+        with open(self.md_file_path, "r", encoding="utf-8") as file: lines = file.readlines()
+
+        self.textbox.configure(state="normal")
+        
+        for line in lines:
+            stripped_line = line.strip()
+            
+            # # Header
+            if stripped_line.startswith("# "):
+                clean_text = stripped_line[2:] + "\n\n"
+                self.textbox.insert("end", clean_text, "H1")
+                continue
+                
+            # ## Header
+            elif stripped_line.startswith("## "):
+                clean_text = stripped_line[3:] + "\n\n"
+                self.textbox.insert("end", clean_text, "H2")
+                continue
+
+            # ### Header
+            elif stripped_line.startswith("### "):
+                clean_text = stripped_line[4:] + "\n\n"
+                self.textbox.insert("end", clean_text, "H3")
+                continue
+
+            # * Item
+            elif stripped_line.startswith("* ") or stripped_line.startswith("- "):
+                clean_text = stripped_line[2:]
+                self.textbox.insert("end", "  • ", "BULLET")
+                self.parse_inline_styles(clean_text)
+                self.textbox.insert("end", "\n")
+                continue
+            
+            # Regular text
+            else:
+                if line == "\n": self.textbox.insert("end", "\n")
+                else: self.parse_inline_styles(line)
+
+        self.textbox.configure(state="disabled")
+
+    def parse_inline_styles(self, text_line):
+        parts = re.split(r"(\*\*.*?\*\*)", text_line)
+        for part in parts:
+            if part.startswith("**") and part.endswith("**"):
+                bold_content = part[2:-2]
+                self.textbox.insert("end", bold_content, "BOLD")
+            else: self.textbox.insert("end", part, "NORMAL")
+
+class ProgressWindow(ctk.CTkToplevel):
+    def __init__(self, parent, ui_colors, task_count):
+        super().__init__(parent)
+
+        self.ui_colors = ui_colors
+        self.task_count = task_count
+                
+        self.title("Analysis Progress")
+        self.geometry("380x140")
         self.resizable(False, False)
+
+        self.attributes("-topmost", True)
+
+        self.protocol("WM_DELETE_WINDOW", self.handle_close_attempt)
         
         self.transient(parent)
         self.grab_set()
@@ -243,7 +288,51 @@ class InfoWindow(ctk.CTkToplevel):
         self.init_ui()
 
     def init_ui(self):
-        pass
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+
+        main_frame = ctk.CTkFrame(self, fg_color="transparent")
+        main_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
+        main_frame.grid_columnconfigure(0, weight=1)
+
+        self.lbl_status = ctk.CTkLabel(
+            main_frame,
+            text="Initializing computational core...",
+            font=("Arial", 12, "bold"),
+            text_color=self.ui_colors.get("text_main", "#ffffff"),
+            anchor="w"
+        )
+        self.lbl_status.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+
+        self.progress_bar = ctk.CTkProgressBar(
+            main_frame,
+            orientation="horizontal",
+            mode="determinate",
+            progress_color=self.ui_colors.get("btn_run_fg", "#1f538d"),
+            fg_color=self.ui_colors.get("border", "#3a3a3a")
+        )
+        self.progress_bar.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+        self.progress_bar.set(0.0)
+
+        self.lbl_msg = ctk.CTkLabel(
+            main_frame,
+            text="Waiting for execution steps...",
+            font=("Arial", 11),
+            text_color=self.ui_colors.get("text_muted", "#8a8a8a"),
+            anchor="w"
+        )
+        self.lbl_msg.grid(row=2, column=0, sticky="ew")
+
+    def update_progress(self, tnum, msg):
+        progress_value = min(max(tnum / self.task_count, 0.0), 1.0)
+        self.progress_bar.set(progress_value)
+
+        self.lbl_status.configure(text=f"Processing Analysis ({tnum}/{self.task_count})")
+        self.lbl_msg.configure(text=str(msg))
+        
+        self.update_idletasks()
+
+    def handle_close_attempt(self): pass
 
 class App(ctk.CTk):
     def __init__(self, gui_cmd_buff, sys_cmd_buff, dman):
@@ -255,12 +344,13 @@ class App(ctk.CTk):
         self.system_command_buffer = sys_cmd_buff
 
         self.title("Gene Analyzer X")
-        self.geometry("800x650")
+        self.geometry("1000x650")
 
         ctk.set_appearance_mode("dark")
 
         self.current_data_file_path = None
-        self.current_annotation_file_path = None
+
+        self.analysis_progress_window = None
 
         self.init_colors()
         self.configure(fg_color=self.ui_colors["bg_main"])
@@ -329,12 +419,12 @@ class App(ctk.CTk):
         )
         lbl_panel_title.pack(side="left")
 
-        # Circular Info Button moved to the left panel next to title
+        # Circular Info Button
         self.btn_info = ctk.CTkButton(
             header_frame,
-            text="?",
-            width=24,
-            height=24,
+            text="i",
+            width=20,
+            height=20,
             corner_radius=12,
             font=("Arial", 12, "bold"),
             fg_color=self.ui_colors.get("btn_file_fg", "#242424"),
@@ -344,6 +434,7 @@ class App(ctk.CTk):
         )
         self.btn_info.pack(side="right", padx=(5, 0))
 
+        # --- PATIENT DATA FILE SECTION ---
         lbl_data_section = ctk.CTkLabel(
             left_panel,
             text="PATIENT DATA FILE (.fasta.gz)",
@@ -374,39 +465,10 @@ class App(ctk.CTk):
         )
         self.lbl_data_file.pack(anchor="w", padx=15, pady=(0, 10))
 
-        lbl_anno_section = ctk.CTkLabel(
-            left_panel,
-            text="ANNOTATION MAP FILE (.gff3 / .gtf)",
-            font=("Arial", 10, "bold"),
-            text_color=self.ui_colors["text_muted"]
-        )
-        lbl_anno_section.pack(anchor="w", padx=15, pady=(10, 2))
-
-        self.btn_select_anno = ctk.CTkButton(
-            left_panel,
-            text="Choose Map File",
-            font=("Arial", 12, "bold"),
-            fg_color=self.ui_colors["btn_file_fg"],
-            hover_color=self.ui_colors["btn_file_hover"],
-            text_color=self.ui_colors["text_main"],
-            height=32,
-            command=self.select_annotation_file
-        )
-        self.btn_select_anno.pack(fill="x", padx=15, pady=5)
-
-        self.lbl_anno_file = ctk.CTkLabel(
-            left_panel,
-            text="No file selected",
-            font=("Arial", 11),
-            text_color=self.ui_colors["text_muted"],
-            wraplength=230,
-            justify="left"
-        )
-        self.lbl_anno_file.pack(anchor="w", padx=15, pady=(0, 10))
-
+        # --- TARGET GENE NAME SECTION ---
         lbl_gene_section = ctk.CTkLabel(
             left_panel,
-            text="TARGET GENE NAME / ID",
+            text="TARGET GENE NAME",
             font=("Arial", 10, "bold"),
             text_color=self.ui_colors["text_muted"]
         )
@@ -414,7 +476,7 @@ class App(ctk.CTk):
 
         self.entry_gene_id = ctk.CTkEntry(
             left_panel,
-            placeholder_text="Name/ID",
+            placeholder_text="Name",
             font=("Arial", 12),
             fg_color=self.ui_colors["bg_main"],
             border_color=self.ui_colors["border"],
@@ -422,6 +484,21 @@ class App(ctk.CTk):
             height=32
         )
         self.entry_gene_id.pack(fill="x", padx=15, pady=5)
+
+        # --- CLEAR ALL ACTION BUTTON ---
+        self.btn_clear_all = ctk.CTkButton(
+            left_panel,
+            text="Clear All Data",
+            font=("Arial", 11, "bold"),
+            fg_color="transparent",
+            hover_color=self.ui_colors.get("btn_file_hover", "#3a3a3a"),
+            text_color=self.ui_colors["text_muted"],
+            border_width=1,
+            border_color=self.ui_colors["border"],
+            height=28,
+            command=self.clear_all_inputs
+        )
+        self.btn_clear_all.pack(fill="x", padx=15, pady=(5, 10))
 
         spacer = ctk.CTkLabel(left_panel, text=" ")
         spacer.pack(fill="both", expand=True)
@@ -455,32 +532,19 @@ class App(ctk.CTk):
         right_panel = ctk.CTkFrame(self, fg_color="transparent")
         right_panel.grid(row=0, column=1, sticky="nsew", padx=15, pady=15)
 
-        self.progress_bar = ctk.CTkProgressBar(
-            right_panel,
-            height=8,
-            corner_radius=4,
-            fg_color=self.ui_colors["bg_panel"],
-            progress_color=self.ui_colors["btn_run_fg"]
-        )
-        self.progress_bar.set(0.0)
-        self.progress_bar.pack(fill="x", pady=(0, 12))
-
-        # --- 2. DATA VIEW AREA (TREEVIEW) ---
         table_frame = ctk.CTkFrame(right_panel, fg_color="transparent")
         table_frame.pack(fill="both", expand=True)
 
-        # Treeview setting
         style = ttk.Style()
         style.theme_use("clam") 
 
         style.configure(
             "Treeview",
-            font=("Arial", 6),
+            font=("Arial", 8),
             rowheight=24
         )
-        style.configure(
-            "Treeview.Heading",
-            font=("Arial", 8, "bold")
+        style.configure( "Treeview.Heading",
+            font=("Arial", 10, "bold")
         )
 
         columns = ("id", "chr", "position", "ref", "alt", "clnvs", "clnsign", "name")
@@ -505,14 +569,14 @@ class App(ctk.CTk):
         self.tree.heading("clnsign", text="Significance")
         self.tree.heading("name", text="Disease Name")
 
-        self.tree.column("id", width=20, minwidth=20, anchor="center")
-        self.tree.column("chr", width=45, minwidth=40, anchor="center")
-        self.tree.column("position", width=100, minwidth=100, anchor="w")
-        self.tree.column("ref", width=65, minwidth=65, anchor="center")
-        self.tree.column("alt", width=65, minwidth=65, anchor="center")
-        self.tree.column("clnvs", width=95, minwidth=95, anchor="center")
-        self.tree.column("clnsign", width=100, minwidth=100, anchor="center")
-        self.tree.column("name", width=220, minwidth=180, anchor="w")
+        self.tree.column("id", width=30, minwidth=25, anchor="center")
+        self.tree.column("chr", width=55, minwidth=45, anchor="center")
+        self.tree.column("position", width=110, minwidth=100, anchor="w")
+        self.tree.column("ref", width=75, minwidth=65, anchor="center")
+        self.tree.column("alt", width=75, minwidth=65, anchor="center")
+        self.tree.column("clnvs", width=105, minwidth=95, anchor="center")
+        self.tree.column("clnsign", width=120, minwidth=100, anchor="center")
+        self.tree.column("name", width=250, minwidth=180, anchor="w")
 
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
@@ -521,9 +585,9 @@ class App(ctk.CTk):
 
         self.tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
-
-    def show_info_popup(self):
-        InfoWindow(self, self.ui_colors, lib.APP_INFO_DIR)
+    
+    # === Event functions === #
+    def show_info_popup(self): InfoWindow(self, self.ui_colors, lib.APP_INFO_DIR)
 
     def select_data_file(self):
         file_path = filedialog.askopenfilename(filetypes=[("FASTA files", "*.fasta.gz *.fa.gz")])
@@ -533,14 +597,14 @@ class App(ctk.CTk):
             self.lbl_data_file.configure(text=filename, text_color=self.ui_colors["text_main"])
             # Save path
             self.current_data_file_path = file_path
-    def select_annotation_file(self):
-        file_path = filedialog.askopenfilename(filetypes=[("GTF files", "*.gff3 *.gtf")])
-        if file_path:
-            filename = file_path.split("/")[-1]
-            # Update UI
-            self.lbl_anno_file.configure(text=filename, text_color=self.ui_colors["text_main"])
-            # Save path
-            self.current_annotation_file_path = file_path
+
+    def clear_all_inputs(self):
+        self.lbl_data_file.configure(text="No file selected")
+        self.entry_gene_id.delete(0, "end")
+
+        for item in self.tree.get_children(): self.tree.delete(item)
+            
+        self.btn_export_vcf.configure(state="disabled")
 
     def on_tree_double_click(self, e):
         selected_item = self.tree.selection()[0]
@@ -563,11 +627,17 @@ class App(ctk.CTk):
         MutationDetailWindow(self, self.ui_colors, mock_data)
 
     def run_analysis(self):
-        self.tree.delete(*self.tree.get_children())
-        if self.current_data_file_path and self.current_annotation_file_path:
+        gene_id = self.entry_gene_id.get()
+        if self.current_data_file_path and gene_id.strip() != "":
+            # Interface
             self.btn_analyse.configure(state="disabled")
-            self.system_command_buffer.put(("RUN", [self.current_data_file_path, self.current_annotation_file_path, self.entry_gene_id.get()]))
+            self.analysis_progress_window = ProgressWindow(self, self.ui_colors, 7)
+            # Send a command
+            self.system_command_buffer.put(("RUN", [self.current_data_file_path, gene_id]))
+        else: lib.dbg("Cannot start the analysis.")
 
+        self.clear_all_inputs()
+            
     def export_to_vcf(self):
         tree_items = self.tree.get_children()
         if not tree_items: return
@@ -600,6 +670,7 @@ class App(ctk.CTk):
         target_chrom_name = f"chr{self.entry_chr.get()}"
         self.system_command_buffer.put(("EXPORT", [parsed_mutations, target_chrom_name, file_path]))
 
+    # === Command buffer handler === #
     def read_buffer(self):
         try:
             while True:
@@ -618,10 +689,18 @@ class App(ctk.CTk):
 
                     case "DB_UPDATE":
                         self.btn_analyse.configure(state="disabled")
-                        # Debug
+
+                    case "PROGRESS":
+                        task_num, msg = payload
+                        if self.analysis_progress_window: self.analysis_progress_window.update_progress(task_num, msg)
 
                     case "DONE":
                         self.btn_analyse.configure(state="normal")
+                        # Close progressbar
+                        if self.analysis_progress_window:
+                            self.analysis_progress_window.grab_release()
+                            self.analysis_progress_window.destroy()
+                            self.analysis_progress_window = None
 
                     case _: pass
                         

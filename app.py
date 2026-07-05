@@ -24,10 +24,10 @@ def system_thread():
                 lib.log("Analysing started...")
 
                 # Get payload
-                data_file_path, annotation_file_path, gene_id = payload
+                data_file_path, gene_id = payload
 
                 # Anaalyze
-                results = core.run_comparing(data_file_path, annotation_file_path, gene_id)
+                results = core.run_comparing(data_file_path, gene_id)
 
                 # Seek for diseases
                 full_mutations_data = core.find_mutations(results)
@@ -36,7 +36,7 @@ def system_thread():
                 # Send into interface
                 for i in range(len(full_mutations_data)):
                     d = full_mutations_data[i]
-                    d.insert(0, (i+1))
+                    d.insert(0, (i + 1))
                     gui_command_buffer.put(("MUTATION", d))
 
                 gui_command_buffer.put(("DONE", None))
