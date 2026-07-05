@@ -23,27 +23,14 @@ def system_thread():
             case "RUN":
                 lib.log("Analysing started...")
 
-                file_path, chrm, pos = payload
-
-                # Open files
-                if file_path.endswith(".gz"): selected_file_data = lib.gzip_open(file_path)
-                else: selected_file_data = lib.open_file(file_path, "r")
-                chr_data = data_manager.download_chromosome(chrm)
-
-                # Check
-                if len(selected_file_data) > lib.MAX_NUCL_LENGTH:
-                    lib.log(f"Selected file too long (>{lib.MAX_NUCL_LENGTH}). OverflowError.")
-                    gui_command_buffer.put(("DONE", None))
-                    break
+                # Get payload
+                data_file_path, annotation_file_path, gene_id = payload
 
                 # Anaalyze
-                results = core.run_comparing(selected_file_data, chr_data, int(pos))
-
-                # Purge temp
-                data_manager.purge_temp()
+                results = core.run_comparing(data_file_path, annotation_file_path, gene_id)
 
                 # Seek for diseases
-                full_mutations_data = core.find_mutations(results, chrm)
+                full_mutations_data = core.find_mutations(results)
                 full_mutations_data.sort(key=lambda r: r[0])
 
                 # Send into interface

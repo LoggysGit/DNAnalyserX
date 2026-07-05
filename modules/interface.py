@@ -226,6 +226,25 @@ class MutationDetailWindow(ctk.CTkToplevel):
         )
         btn_close.pack(fill="x")
 
+class InfoWindow(ctk.CTkToplevel):
+    def __init__(self, parent, ui_colors, md_path):
+        super().__init__(parent)
+
+        self.ui_colors = ui_colors
+        self.md_file_path = md_path
+                
+        self.title("Information")
+        self.geometry("500x350")
+        self.resizable(False, False)
+        
+        self.transient(parent)
+        self.grab_set()
+
+        self.init_ui()
+
+    def init_ui(self):
+        pass
+
 class App(ctk.CTk):
     def __init__(self, gui_cmd_buff, sys_cmd_buff, dman):
         super().__init__()
@@ -235,12 +254,13 @@ class App(ctk.CTk):
         self.command_queue = gui_cmd_buff
         self.system_command_buffer = sys_cmd_buff
 
-        self.title("DNA Analyzer")
+        self.title("Gene Analyzer X")
         self.geometry("800x650")
 
         ctk.set_appearance_mode("dark")
 
-        self.current_file_path = None
+        self.current_data_file_path = None
+        self.current_annotation_file_path = None
 
         self.init_colors()
         self.configure(fg_color=self.ui_colors["bg_main"])
@@ -284,48 +304,198 @@ class App(ctk.CTk):
                         bd=0)
 
     def init_ui(self):
-        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=0, minsize=260)
+        self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=0)
 
-        # Workspace Container (File Info + Treeview)
-        workspace_frame = ctk.CTkFrame(self, fg_color="transparent")
-        workspace_frame.grid(row=0, column=0, sticky="nsew", padx=15, pady=(15, 5))
+        # --- LEFT PANEL ---
+        left_panel = ctk.CTkFrame(
+            self,
+            fg_color=self.ui_colors["bg_panel"],
+            border_color=self.ui_colors["border"],
+            border_width=1,
+            corner_radius=0
+        )
+        left_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 5), pady=0)
+        
+        header_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
+        header_frame.pack(fill="x", padx=15, pady=(20, 15))
 
-        # 1. FILE METADATA SUB-PANEL
-        file_info_frame = ctk.CTkFrame(workspace_frame, fg_color="transparent")
-        file_info_frame.pack(fill="x", pady=(0, 10))
-
-        metadata_center_container = ctk.CTkFrame(file_info_frame, fg_color="transparent")
-        metadata_center_container.pack(anchor="center")
-
-        self.lbl_status_filename = ctk.CTkLabel(
-            metadata_center_container, 
-            text="Not selected", 
-            font=("Arial", 32, "bold"),
+        lbl_panel_title = ctk.CTkLabel(
+            header_frame,
+            text="GeneAnalyzerX",
+            font=("Arial", 20, "bold"),
             text_color=self.ui_colors["text_main"]
         )
-        self.lbl_status_filename.pack(side="left")
+        lbl_panel_title.pack(side="left")
 
-        # 3. ANALYSIS OUTPUT CONSOLE
-        table_frame = ctk.CTkFrame(workspace_frame, fg_color="transparent")
+        # Circular Info Button moved to the left panel next to title
+        self.btn_info = ctk.CTkButton(
+            header_frame,
+            text="?",
+            width=24,
+            height=24,
+            corner_radius=12,
+            font=("Arial", 12, "bold"),
+            fg_color=self.ui_colors.get("btn_file_fg", "#242424"),
+            hover_color=self.ui_colors.get("btn_file_hover", "#3a3a3a"),
+            text_color=self.ui_colors["text_main"],
+            command=self.show_info_popup
+        )
+        self.btn_info.pack(side="right", padx=(5, 0))
+
+        lbl_data_section = ctk.CTkLabel(
+            left_panel,
+            text="PATIENT DATA FILE (.fasta.gz)",
+            font=("Arial", 10, "bold"),
+            text_color=self.ui_colors["text_muted"]
+        )
+        lbl_data_section.pack(anchor="w", padx=15, pady=(10, 2))
+
+        self.btn_select_data = ctk.CTkButton(
+            left_panel,
+            text="Choose Data File",
+            font=("Arial", 12, "bold"),
+            fg_color=self.ui_colors["btn_file_fg"],
+            hover_color=self.ui_colors["btn_file_hover"],
+            text_color=self.ui_colors["text_main"],
+            height=32,
+            command=self.select_data_file
+        )
+        self.btn_select_data.pack(fill="x", padx=15, pady=5)
+
+        self.lbl_data_file = ctk.CTkLabel(
+            left_panel,
+            text="No file selected",
+            font=("Arial", 11),
+            text_color=self.ui_colors["text_muted"],
+            wraplength=230,
+            justify="left"
+        )
+        self.lbl_data_file.pack(anchor="w", padx=15, pady=(0, 10))
+
+        lbl_anno_section = ctk.CTkLabel(
+            left_panel,
+            text="ANNOTATION MAP FILE (.gff3 / .gtf)",
+            font=("Arial", 10, "bold"),
+            text_color=self.ui_colors["text_muted"]
+        )
+        lbl_anno_section.pack(anchor="w", padx=15, pady=(10, 2))
+
+        self.btn_select_anno = ctk.CTkButton(
+            left_panel,
+            text="Choose Map File",
+            font=("Arial", 12, "bold"),
+            fg_color=self.ui_colors["btn_file_fg"],
+            hover_color=self.ui_colors["btn_file_hover"],
+            text_color=self.ui_colors["text_main"],
+            height=32,
+            command=self.select_annotation_file
+        )
+        self.btn_select_anno.pack(fill="x", padx=15, pady=5)
+
+        self.lbl_anno_file = ctk.CTkLabel(
+            left_panel,
+            text="No file selected",
+            font=("Arial", 11),
+            text_color=self.ui_colors["text_muted"],
+            wraplength=230,
+            justify="left"
+        )
+        self.lbl_anno_file.pack(anchor="w", padx=15, pady=(0, 10))
+
+        lbl_gene_section = ctk.CTkLabel(
+            left_panel,
+            text="TARGET GENE NAME / ID",
+            font=("Arial", 10, "bold"),
+            text_color=self.ui_colors["text_muted"]
+        )
+        lbl_gene_section.pack(anchor="w", padx=15, pady=(10, 2))
+
+        self.entry_gene_id = ctk.CTkEntry(
+            left_panel,
+            placeholder_text="Name/ID",
+            font=("Arial", 12),
+            fg_color=self.ui_colors["bg_main"],
+            border_color=self.ui_colors["border"],
+            text_color=self.ui_colors["text_main"],
+            height=32
+        )
+        self.entry_gene_id.pack(fill="x", padx=15, pady=5)
+
+        spacer = ctk.CTkLabel(left_panel, text=" ")
+        spacer.pack(fill="both", expand=True)
+
+        self.btn_analyse = ctk.CTkButton(
+            left_panel,
+            text="Run Gene Analysis",
+            font=("Arial", 13, "bold"),
+            fg_color=self.ui_colors["btn_run_fg"],
+            hover_color=self.ui_colors["btn_run_hover"],
+            text_color=self.ui_colors["text_main"],
+            height=40,
+            command=self.run_analysis
+        )
+        self.btn_analyse.pack(fill="x", padx=15, pady=(0, 10))
+
+        self.btn_export_vcf = ctk.CTkButton(
+            left_panel,
+            text="Export Results to VCF",
+            font=("Arial", 12, "bold"),
+            fg_color=self.ui_colors.get("btn_file_fg", "#242424"),
+            hover_color=self.ui_colors.get("btn_file_hover", "#3a3a3a"),
+            text_color=self.ui_colors["text_muted"],
+            height=35,
+            state="disabled",
+            command=self.export_to_vcf
+        )
+        self.btn_export_vcf.pack(fill="x", padx=15, pady=(0, 20))
+
+        # --- RIGHT PANEL ---
+        right_panel = ctk.CTkFrame(self, fg_color="transparent")
+        right_panel.grid(row=0, column=1, sticky="nsew", padx=15, pady=15)
+
+        self.progress_bar = ctk.CTkProgressBar(
+            right_panel,
+            height=8,
+            corner_radius=4,
+            fg_color=self.ui_colors["bg_panel"],
+            progress_color=self.ui_colors["btn_run_fg"]
+        )
+        self.progress_bar.set(0.0)
+        self.progress_bar.pack(fill="x", pady=(0, 12))
+
+        # --- 2. DATA VIEW AREA (TREEVIEW) ---
+        table_frame = ctk.CTkFrame(right_panel, fg_color="transparent")
         table_frame.pack(fill="both", expand=True)
-        
+
+        # Treeview setting
+        style = ttk.Style()
+        style.theme_use("clam") 
+
+        style.configure(
+            "Treeview",
+            font=("Arial", 6),
+            rowheight=24
+        )
+        style.configure(
+            "Treeview.Heading",
+            font=("Arial", 8, "bold")
+        )
+
         columns = ("id", "chr", "position", "ref", "alt", "clnvs", "clnsign", "name")
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings")
-
-        # Set tree styles
+        
         self.tree.tag_configure(
-            'in_database', 
-            foreground=self.ui_colors["text_main"], 
+            'in_database',
+            foreground=self.ui_colors["text_main"],
             background=self.ui_colors["border"]
         )
         self.tree.tag_configure(
-            'missing', 
+            'missing',
             foreground=self.ui_colors["text_muted"]
         )
-        
-        # Tree headers
+
         self.tree.heading("id", text="№")
         self.tree.heading("chr", text="CHR")
         self.tree.heading("position", text="Position")
@@ -333,130 +503,44 @@ class App(ctk.CTk):
         self.tree.heading("alt", text="Alt")
         self.tree.heading("clnvs", text="CLNVS")
         self.tree.heading("clnsign", text="Significance")
-        self.tree.heading("name", text="Disease name")
-        
-        self.tree.column("id", width=5, anchor="center")
-        self.tree.column("chr", width=10, anchor="center")
-        self.tree.column("position", width=80, anchor="w")
-        self.tree.column("ref", width=50, anchor="center")
-        self.tree.column("alt", width=50, anchor="center")
-        self.tree.column("clnvs", width=70, anchor="center")
-        self.tree.column("clnsign", width=80, anchor="center")
-        self.tree.column("name", width=130, anchor="center")
-        
+        self.tree.heading("name", text="Disease Name")
+
+        self.tree.column("id", width=20, minwidth=20, anchor="center")
+        self.tree.column("chr", width=45, minwidth=40, anchor="center")
+        self.tree.column("position", width=100, minwidth=100, anchor="w")
+        self.tree.column("ref", width=65, minwidth=65, anchor="center")
+        self.tree.column("alt", width=65, minwidth=65, anchor="center")
+        self.tree.column("clnvs", width=95, minwidth=95, anchor="center")
+        self.tree.column("clnsign", width=100, minwidth=100, anchor="center")
+        self.tree.column("name", width=220, minwidth=180, anchor="w")
+
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
 
         self.tree.bind("<Double-1>", self.on_tree_double_click)
-        
+
         self.tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        # Export to VCF Button
-        self.btn_export_vcf = ctk.CTkButton(
-            table_frame,
-            text="Export to VCF",
-            width=110,
-            height=28,
-            font=("Arial", 11, "bold"),
-            fg_color=self.ui_colors.get("btn_file_fg", "#242424"),
-            hover_color=self.ui_colors.get("btn_file_hover", "#3a3a3a"),
-            text_color=self.ui_colors["text_main"],
-            corner_radius=6,
-            command=self.export_to_vcf
-        )
-        self.btn_export_vcf.place(relx=1.0, rely=1.0, anchor="se", x=-35, y=-15)
+    def show_info_popup(self):
+        InfoWindow(self, self.ui_colors, lib.APP_INFO_DIR)
 
-        # BOTTOM AREA: Control Panel
-        control_panel = ctk.CTkFrame(
-            self, 
-            height=70, 
-            fg_color=self.ui_colors["bg_panel"],
-            border_color=self.ui_colors["border"],
-            border_width=1
-        )
-        control_panel.grid(row=1, column=0, sticky="ew", padx=15, pady=15)
-        
-        # File selection button
-        self.btn_select = ctk.CTkButton(
-            control_panel, 
-            text="Select File", 
-            width=120, 
-            font=("Arial", 12, "bold"),
-            fg_color=self.ui_colors["btn_file_fg"],
-            hover_color=self.ui_colors["btn_file_hover"],
-            text_color=self.ui_colors["text_main"],
-            command=self.select_file
-        )
-        self.btn_select.pack(side="left", padx=15, pady=15)
-
-        # File path display label
-        self.lbl_file = ctk.CTkLabel(
-            control_panel, 
-            text="No file selected", 
-            font=("Arial", 12), 
-            text_color=self.ui_colors["text_muted"]
-        )
-        self.lbl_file.pack(side="left", padx=5, pady=15)
-
-        # Coordinates input frame
-        inputs_frame = ctk.CTkFrame(control_panel, fg_color="transparent")
-        inputs_frame.pack(side="left", expand=True, pady=15)
-
-        # Chr Input
-        lbl_chr = ctk.CTkLabel(inputs_frame, text="Chr:", font=("Arial", 12), text_color=self.ui_colors["text_main"])
-        lbl_chr.pack(side="left", padx=2)
-        self.entry_chr = ValidatedNumberEntry(
-            inputs_frame, 
-            min_val=1,
-            max_val=23,
-            default_val=1,
-            width=60, 
-            fg_color=self.ui_colors["bg_main"],
-            border_color=self.ui_colors["border"],
-            text_color=self.ui_colors["text_main"]
-        )
-        self.entry_chr.pack(side="left", padx=10)
-
-        # Pos Input
-        lbl_pos = ctk.CTkLabel(inputs_frame, text="Pos:", font=("Arial", 12), text_color=self.ui_colors["text_main"])
-        lbl_pos.pack(side="left", padx=2)
-        self.entry_pos = ValidatedNumberEntry(
-            inputs_frame,
-            min_val=0,
-            max_val=1000000000,
-            default_val=0,
-            width=120,
-            fg_color=self.ui_colors["bg_main"],
-            border_color=self.ui_colors["border"],
-            text_color=self.ui_colors["text_main"]
-        )
-        self.entry_pos.pack(side="left", padx=10)
-
-        # Analysis execution button
-        self.btn_analyse = ctk.CTkButton(
-            control_panel, 
-            text="Analyse", 
-            width=120, 
-            font=("Arial", 12, "bold"),
-            fg_color=self.ui_colors["btn_run_fg"], 
-            hover_color=self.ui_colors["btn_run_hover"],
-            text_color=self.ui_colors["text_main"],
-            command=self.run_analysis
-        )
-        self.btn_analyse.pack(side="right", padx=15, pady=15)
-
-    def select_file(self):
-        file_path = filedialog.askopenfilename(filetypes=[("FASTA files", "*.fasta *.fa *.fasta.gz *.fa.gz")])
+    def select_data_file(self):
+        file_path = filedialog.askopenfilename(filetypes=[("FASTA files", "*.fasta.gz *.fa.gz")])
         if file_path:
             filename = file_path.split("/")[-1]
-            
             # Update UI
-            self.lbl_file.configure(text=filename, text_color=self.ui_colors["text_main"])
-            self.lbl_status_filename.configure(text=filename)
-            
+            self.lbl_data_file.configure(text=filename, text_color=self.ui_colors["text_main"])
             # Save path
-            self.current_file_path = file_path
+            self.current_data_file_path = file_path
+    def select_annotation_file(self):
+        file_path = filedialog.askopenfilename(filetypes=[("GTF files", "*.gff3 *.gtf")])
+        if file_path:
+            filename = file_path.split("/")[-1]
+            # Update UI
+            self.lbl_anno_file.configure(text=filename, text_color=self.ui_colors["text_main"])
+            # Save path
+            self.current_annotation_file_path = file_path
 
     def on_tree_double_click(self, e):
         selected_item = self.tree.selection()[0]
@@ -480,15 +564,15 @@ class App(ctk.CTk):
 
     def run_analysis(self):
         self.tree.delete(*self.tree.get_children())
-        if self.current_file_path:
+        if self.current_data_file_path and self.current_annotation_file_path:
             self.btn_analyse.configure(state="disabled")
-            self.system_command_buffer.put(("RUN", [self.current_file_path, self.entry_chr.get(), self.entry_pos.get()]))
+            self.system_command_buffer.put(("RUN", [self.current_data_file_path, self.current_annotation_file_path, self.entry_gene_id.get()]))
 
     def export_to_vcf(self):
         tree_items = self.tree.get_children()
         if not tree_items: return
 
-        default_filename = f"mutations_{self.entry_chr.get()}_{self.entry_pos.get()}_export.vcf"
+        default_filename = f"gene_{self.entry_gene_id.get()}_export.vcf"
         file_path = filedialog.asksaveasfilename(
             defaultextension=".vcf",
             filetypes=[("VCF Files", "*.vcf"), ("All Files", "*.*")],

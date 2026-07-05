@@ -1,4 +1,7 @@
-customtkinter
-numpy
-numba
 requests
+
+customtkinter
+
+numpy
+biopython
+bcbio-gff

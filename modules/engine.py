@@ -1,211 +1,180 @@
-import numpy as np
-from numba import njit
+import os
+
 import sqlite3
+import gzip
+
+from Bio import SeqIO
+from Bio.Seq import Seq
+from BCBio import GFF
+from Bio import Entrez
+from Bio.Align import *
 
 import modules.lib as lib
-
-@njit(fastmath=True)
-def generate_sw_matrix(ref_seq_len, pat_seq_len, ref_seq, patient_seq):
-    sw_matrix = np.zeros((ref_seq_len + 1, pat_seq_len + 1), dtype=np.int32)
-
-    hor_gaps = np.zeros((ref_seq_len + 1, pat_seq_len + 1), dtype=np.int32)
-    ver_gaps = np.zeros((ref_seq_len + 1, pat_seq_len + 1), dtype=np.int32)
-
-    traceback = np.zeros((ref_seq_len + 1, pat_seq_len + 1), dtype=np.int32)
-    # traceback codes: 0 = stop, 1 = diagonal, 2 = vertical (deletion), 3 = horizontal (insertion)
-
-    for i in range(1, ref_seq_len + 1):
-        for j in range(1, pat_seq_len + 1):
-            diag_score = lib.MATCH_SCORE if ref_seq[i-1] == patient_seq[j-1] else lib.MISMATCH_SCORE
-            diag_val = sw_matrix[i-1][j-1] + diag_score
-
-            hor_gaps[i][j] = max(sw_matrix[i][j-1] + lib.GAP_OPEN_SCORE, hor_gaps[i][j-1] + lib.GAP_EXT_SCORE)
-            ver_gaps[i][j] = max(sw_matrix[i-1][j] + lib.GAP_OPEN_SCORE, ver_gaps[i-1][j] + lib.GAP_EXT_SCORE)
-
-            best = 0
-            ptr = 0
-            if diag_val > best:
-                best = diag_val
-                ptr = 1
-            if ver_gaps[i][j] > best:
-                best = ver_gaps[i][j]
-                ptr = 2
-            if hor_gaps[i][j] > best:
-                best = hor_gaps[i][j]
-                ptr = 3
-
-            sw_matrix[i][j] = best
-            traceback[i][j] = ptr
-
-    return sw_matrix, hor_gaps, ver_gaps, traceback
-
-def sw_backtrack(pos, ref_seq, patient_seq, sw_matrix, hor_gaps, ver_gaps, traceback):
-    results = []
-
-    flat_idx = np.argmax(sw_matrix)
-    max_row, max_col = np.unravel_index(flat_idx, sw_matrix.shape)
-
-    bi, bj = max_row, max_col
-    while bi > 0 and bj > 0 and sw_matrix[bi][bj] > 0:
-        ptr = traceback[bi][bj]
-
-        if ptr == 1:  # diagonal
-            check_score = lib.MATCH_SCORE if ref_seq[bi-1] == patient_seq[bj-1] else lib.MISMATCH_SCORE
-            if check_score != lib.MATCH_SCORE:
-                results.append([int(pos + bi - 1), "SNV", ref_seq[bi - 1], patient_seq[bj - 1]])
-            bi, bj = bi-1, bj-1
-
-        elif ptr == 2:  # vertical
-            while bi > 0 and traceback[bi][bj] == 2 and ver_gaps[bi][bj] == ver_gaps[bi-1][bj] + lib.GAP_EXT_SCORE:
-                results.append([int(pos + bi - 1), "Deletion", ref_seq[bi-1], "."])
-                bi -= 1
-            results.append([int(pos + bi - 1), "Deletion", ref_seq[bi-1], "."])
-            bi -= 1
-
-        elif ptr == 3:  # horizontal
-            while bj > 0 and traceback[bi][bj] == 3 and hor_gaps[bi][bj] == hor_gaps[bi][bj-1] + lib.GAP_EXT_SCORE:
-                results.append([int(pos + bi - 1), "Insertion", ".", patient_seq[bj - 1]])
-                bj -= 1
-            results.append([int(pos + bi - 1), "Insertion", ".", patient_seq[bj - 1]])
-            bj -= 1
-
-        else:
-            lib.dbg(f"Backtrack stop at bi={bi}, bj={bj}, ptr={ptr}")
-            break
-
-    return results
 
 class Core:
     def __init__(self, gui_cmd_buff, dman):
         self.data_manager = dman
         self.gui_command_buffer = gui_cmd_buff
 
-    def run_comparing(self, patient_data, reference_data, position):
-        # pos: 1-based genomic coordinate
-        if position < 1:
-            lib.log("Position must be 1-based")
-            return []
+    def run_comparing(self, patient_data_path, gene_id):
+        # Open file
+        in_seq_handle = gzip.open(patient_data_path, "rt")
+        patient_seq_dict = SeqIO.to_dict(SeqIO.parse(in_seq_handle, "fasta"))
+        in_seq_handle.close()
 
-        # Parse Patient Data (List & String support)
-        if isinstance(patient_data, list):
-            clean_lines = [line.strip().upper() for line in patient_data if not line.startswith(">")]
-            patient_seq = "".join(clean_lines)
-        else: patient_seq = patient_data.strip().upper()
+        # Check & Download reference and GFF3
+        ref_file_name = f"{gene_id}_reference.fasta.gz"
+        ref_data_path = os.path.join(lib.GENES_CACHE_DIR, ref_file_name)
+        
+        if not os.path.exists(ref_data_path):
+            lib.log(f"Reference for {gene_id} not found locally. Fetching from NCBI...")
+            Entrez.email = "blank.email@mail.com"
+            try:
+                search_handle = Entrez.esearch(db="nucleotide", term=f"{gene_id}[Gene Name] AND RefSeq[Keyword]")
+                search_results = Entrez.read(search_handle)
+                search_handle.close()
+                
+                if search_results["IdList"]:
+                    fetch_id = search_results["IdList"][0]
+                    fetch_handle = Entrez.efetch(db="nucleotide", id=fetch_id, rettype="fasta", retmode="text")
+                    fasta_data = fetch_handle.read()
+                    fetch_handle.close()
+                    
+                    with gzip.open(ref_data_path, "wt") as out_file: out_file.write(fasta_data)
+                else: raise FileNotFoundError(f"Gene identifier {gene_id} not resolved on NCBI servers.")
 
-        patient_seq_len = len(patient_seq)
+            except Exception as error:
+                lib.log(f"Failed to download NCBI reference: {str(error)}")
+                return []
+            
+        else: lib.log("Reference data file found. Skipping download.")
 
-        # Hard Check for overflow
-        if patient_seq_len > lib.MAX_NUCL_LENGTH:
-            lib.log(f"Patient sequence too long ({patient_seq_len} > {lib.MAX_NUCL_LENGTH}). Skipping.")
-            return []
+        # Check & Download GFF3
+        gff_file_name = f"{gene_id}_reference.gff3"
+        ref_anno_path = os.path.join(lib.GENES_CACHE_DIR, gff_file_name)
+        
+        if not os.path.exists(ref_anno_path):
+            lib.log(f"Annotation for {gene_id} not found locally. Fetching from NCBI...")
+            Entrez.email = "blank.email@mail.com"
+            try:
+                search_handle = Entrez.esearch(db="nucleotide", term=f"{gene_id}[Gene Name] AND RefSeq[Keyword] AND Homo sapiens[Organism]")
+                search_results = Entrez.read(search_handle)
+                search_handle.close()
+                
+                if search_results["IdList"]:
+                    fetch_id = search_results["IdList"][0]
 
-        # Parse Reference Data (List & String support)
-        if isinstance(reference_data, list):
-            clean_ref_lines = [line.strip().upper() for line in reference_data if not line.startswith(">")]
-            full_ref_str = "".join(clean_ref_lines)
-        else: full_ref_str = reference_data.strip().upper()
+                    fetch_handle = Entrez.efetch(db="nucleotide", id=fetch_id, rettype="gff3", retmode="text")
+                    gff_data = fetch_handle.read()
+                    fetch_handle.close()
+                    
+                    with open(ref_anno_path, "w") as out_file:
+                        out_file.write(gff_data)
+                else: raise FileNotFoundError(f"Gene identifier {gene_id} not resolved on NCBI servers.")
 
-        # Add padding
-        padding_seq = full_ref_str[position - lib.START_POS_PADDING - 1 : position - 1]
-        patient_seq = padding_seq + patient_seq
-        patient_seq_len = len(patient_seq)
+            except Exception as error:
+                lib.log(f"Failed to download NCBI annotation: {str(error)}")
+                return []
+            
+        else: lib.log("Annotation file found. Skipping download.")
 
-        ref_seq = full_ref_str[position - lib.START_POS_PADDING - 1:]
-        ref_seq_len = len(ref_seq)
+        in_seq_handle = gzip.open(ref_data_path)
+        ref_seq_dict = SeqIO.to_dict(SeqIO.parse(in_seq_handle, "fasta"))
+        in_seq_handle.close()
 
-        max_len = patient_seq_len + lib.MAX_INDEL_SIZE
-        if ref_seq_len > max_len:
-            ref_seq = ref_seq[:max_len]
-            ref_seq_len = len(ref_seq)
+        lib.dbg(f"Patient seq dict: {patient_seq_dict}, Ref seq dict: {ref_seq_dict}")
 
-        results = self.compare_ref(
-            position - lib.START_POS_PADDING,
-            patient_seq,
-            ref_seq,
-            patient_seq_len,
-            ref_seq_len
-        )
+        # Apply annotation
+        clear_patient_dna_str = ""
+        clear_ref_dna_str = ""
 
-        return results
+        in_handle = open(ref_anno_path)
+        for recP in GFF.parse(in_handle, base_dict=patient_seq_dict):
+            for feature in recP.features:
+                if feature.id == gene_id or gene_id in feature.qualifiers.get("Name", []):
+                    for sub_feat in feature.sub_features:
+                        if sub_feat.type == "exon":
+                            clear_patient_dna_str += str(recP.seq[int(sub_feat.location.start):int(sub_feat.location.end)])
+        
+        in_handle.seek(0)
+        for recR in GFF.parse(in_handle, base_dict=ref_seq_dict):
+            for feature in recR.features:
+                if feature.id == gene_id or gene_id in feature.qualifiers.get("Name", []):
+                    for sub_feat in feature.sub_features:
+                        if sub_feat.type == "exon":
+                            clear_ref_dna_str += str(recR.seq[int(sub_feat.location.start):int(sub_feat.location.end)])
+
+        in_handle.close()
+
+        # Turn into aminoacids
+        patient_dna_seq = Seq(clear_patient_dna_str)
+        ref_dna_seq = Seq(clear_ref_dna_str)
+
+        # Pad sequence lengths (MUTED)
+        #if len(patient_proteins) % 3 != 0:  patient_proteins += "N" * (3 - (len(patient_proteins) % 3))
+        #if len(ref_proteins) % 3 != 0: ref_proteins += "N" * (3 - (len(ref_proteins) % 3))
+
+        patient_amino = patient_dna_seq.translate()
+        ref_amino = ref_dna_seq.translate()
+
+        # Align sequences
+        aligner = PairwiseAligner()
+        aligner.mode = "global"
+        protein_alignment = aligner.align(ref_amino, patient_amino)[0]
+        lib.dbg(protein_alignment)
+
+        # Find all mutations
+        mutations = []
+        
+        for ref_range, pat_range in zip(protein_alignment.aligned[0], protein_alignment.aligned[1]):
+            ref_start, ref_end = ref_range
+            pat_start, pat_end = pat_range
+            
+            ref_slice = ref_amino[ref_start:ref_end]
+            pat_slice = patient_amino[pat_start:pat_end]
+            
+            if ref_slice != pat_slice:
+                # Substitution
+                if len(ref_slice) == len(pat_slice):
+                    for index in range(len(ref_slice)):
+                        if ref_slice[index] != pat_slice[index]:
+                            pos = ref_start + index + 1
+                            mutations.append({
+                                "position": pos,
+                                "type": "Substitution",
+                                "hgvs": f"p.{ref_slice[index]}{pos}{pat_slice[index]}"
+                            })
+                # Deletion
+                elif len(ref_slice) > len(pat_slice):
+                    pos = ref_start + 1
+                    mutations.append({
+                        "position": pos,
+                        "type": "Deletion",
+                        "hgvs": f"p.{ref_slice}del"
+                    })
+                # Insertion
+                elif len(ref_slice) < len(pat_slice):
+                    pos = ref_start + 1
+                    mutations.append({
+                        "position": pos,
+                        "type": "Insertion",
+                        "hgvs": f"p.{ref_amino[ref_start]}_{ref_amino[ref_start+1]}ins{pat_slice}"
+                    })
+
+        return mutations
     
-    def compare_ref(self, pos, patient_seq, ref_seq, pat_seq_len, ref_seq_len):
-        # --- Validation --- #
-        if not patient_seq or not ref_seq: return []
-
-        lib.log(f"Ref: {ref_seq_len}, Pat: {pat_seq_len}. Start analyzing...")
-
-        #ref_seq = ref_seq.replace('N', '\x00')
-        #patient_seq = patient_seq.replace('N', '\x00')
-
-        if len(ref_seq) != ref_seq_len or len(patient_seq) != pat_seq_len:
-            lib.log(f"Sequence length mismatch")
-            return []
-
-        valid = set('ACGT\x00')
-        if not set(ref_seq).issubset(valid) or not set(patient_seq).issubset(valid):
-            lib.log(f"Invalid nucleotide symbols")
-            return []
-
-        # --- Algorithm --- #
-        sw_matrix, hor_gaps, ver_gaps, traceback = generate_sw_matrix(ref_seq_len, pat_seq_len, ref_seq, patient_seq)
-        lib.log(f"Smith-Waterman matrix build. Extracting...")
-
-        results = sw_backtrack(pos, ref_seq, patient_seq, sw_matrix, hor_gaps, ver_gaps, traceback)
-        lib.log(f"Comparsion data extracted. Analyzing algorithm done.")
-
-        # --- Done --- #
-        results.reverse()
-        lib.dbg(f"Raw results: {results}")
-        return self.format_mutation_results(results, ref_seq, pos)
-    
-    def format_mutation_results(self, raw_res, ref_seq, window_start_pos):
-        if not raw_res: return []
-        lib.log(f"Result formatting...")
-
-        res = []
-        temp_mut = [raw_res[0][0], raw_res[0][1], raw_res[0][2], raw_res[0][3]]
-
-        for i in range(1, len(raw_res)):
-            mutation = raw_res[i]
-            stride = len(temp_mut[3]) if temp_mut[1] == "Insertion" else len(temp_mut[2])
-            if mutation[0] == temp_mut[0] + stride and mutation[1] == temp_mut[1] and temp_mut[1] != "SNV":
-                if mutation[2] != ".": temp_mut[2] += mutation[2]
-                if mutation[3] != ".": temp_mut[3] += mutation[3]
-            else:
-                res.append(temp_mut)
-                temp_mut = [mutation[0], mutation[1], mutation[2], mutation[3]]
-
-        res.append(temp_mut)
-
-        # Anchor convention for indels
-        for mut in res:
-            if mut[1] in ("Deletion", "Insertion"):
-                anchor_idx = mut[0] - window_start_pos - 1
-                if 0 <= anchor_idx < len(ref_seq):
-                    anchor = ref_seq[anchor_idx]
-                    mut[0] = mut[0] - 1
-                    if mut[1] == "Deletion":
-                        mut[2] = anchor + mut[2]
-                        mut[3] = anchor
-                    else:  # Insertion
-                        mut[2] = anchor
-                        mut[3] = anchor + mut[3]
-
-        lib.log("Results formatted. Run done.")
-        return res
-    
-    def find_mutations(self, dna_anomalies, chromosome_id):
+    def find_mutations(self, anomalies, chrid):
         full_mutations_data = []
-        lib.log(f"Parsing {len(dna_anomalies)} mutations...")
+        lib.log(f"Parsing {len(anomalies)} mutations...")
 
-        for anomaly in dna_anomalies:
+        for anomaly in anomalies:
             try:
                 position = int(anomaly[0])
                 ref_allele = anomaly[2]
                 alt_allele = anomaly[3]
                 
                 db_result = self.data_manager.disease_database.find_mutation(
-                    chromosome_id, position, ref_allele, alt_allele
+                    chrid, position, ref_allele, alt_allele
                 )
                 
                 if db_result: clinical_significance, disease_name = db_result

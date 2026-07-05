@@ -7,4 +7,6 @@ venv/
 
 **/temp/*
 
+**/genes/*
+
 *.db

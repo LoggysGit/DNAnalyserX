@@ -1,0 +1,44 @@
+04.07.2026-18:29:03:474 | Disease database initialized.
+04.07.2026-19:19:37:910 | Disease database initialized.
+04.07.2026-19:19:55:491 | Disease database initialized.
+04.07.2026-19:21:05:780 | Disease database initialized.
+04.07.2026-19:21:42:491 | Disease database initialized.
+04.07.2026-19:21:42:597 | Weekly DB update threshold reached. Initializing update...
+04.07.2026-19:21:42:598 | Starting ClinVar database download...
+04.07.2026-19:27:20:622 | Disease database initialized.
+04.07.2026-19:27:31:164 | Disease database initialized.
+04.07.2026-19:27:31:267 | Weekly DB update threshold reached. Initializing update...
+04.07.2026-19:27:31:268 | Starting ClinVar database download...
+04.07.2026-19:31:03:580 | Failed to download ClinVar database: HTTPSConnectionPool(host='ftp.ncbi.nlm.nih.gov', port=443): Read timed out.
+04.07.2026-19:49:29:409 | Disease database initialized.
+04.07.2026-19:49:51:164 | Disease database initialized.
+04.07.2026-19:50:17:328 | Disease database initialized.
+04.07.2026-19:55:35:492 | Disease database initialized.
+04.07.2026-19:56:46:830 | Disease database initialized.
+04.07.2026-19:59:11:082 | Disease database initialized.
+04.07.2026-19:59:45:902 | Disease database initialized.
+04.07.2026-20:00:12:035 | Disease database initialized.
+04.07.2026-20:58:14:287 | Disease database initialized.
+04.07.2026-21:01:13:427 | Disease database initialized.
+04.07.2026-21:01:50:946 | Disease database initialized.
+04.07.2026-21:03:57:779 | Disease database initialized.
+04.07.2026-21:05:03:665 | Disease database initialized.
+04.07.2026-21:06:21:905 | Disease database initialized.
+04.07.2026-21:06:50:183 | Disease database initialized.
+04.07.2026-21:07:36:553 | Disease database initialized.
+04.07.2026-21:08:37:491 | Disease database initialized.
+04.07.2026-21:09:01:885 | Disease database initialized.
+04.07.2026-22:30:54:709 | Disease database initialized.
+04.07.2026-23:10:25:888 | Disease database initialized.
+04.07.2026-23:11:32:820 | Disease database initialized.
+04.07.2026-23:12:51:103 | Disease database initialized.
+04.07.2026-23:13:26:114 | Analysing started...
+04.07.2026-23:32:03:022 | Disease database initialized.
+04.07.2026-23:32:11:061 | Analysing started...
+04.07.2026-23:33:26:593 | Disease database initialized.
+04.07.2026-23:33:37:524 | Analysing started...
+04.07.2026-23:36:34:076 | Disease database initialized.
+04.07.2026-23:36:40:696 | Analysing started...
+05.07.2026-15:03:54:086 | Disease database initialized.
+05.07.2026-15:04:04:329 | Analysing started...
+05.07.2026-15:04:04:337 | Reference for TP53 not found locally. Fetching from NCBI...
