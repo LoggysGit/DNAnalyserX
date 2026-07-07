@@ -8,11 +8,11 @@ GeneAnalyserX is a software tool for analyzing local segments of human DNA. It c
 
 Key capabilities and design choices:
 
-*   **Purpose** — accurate comparison of a patient's gene sequence against a reference using pairwise sequence alignment (Biopython `PairwiseAligner`, global alignment with affine gap penalties), covering both simple substitutions and insertions/deletions.
-*   **Reference handling** — reference sequences and annotations are fetched from NCBI automatically and cached locally per gene, so repeated analyses of the same gene don't require a new download.
-*   **Interface** — a lightweight, straightforward interface built with CustomTkinter.
-*   **Disease database** — local database of known variants and their clinical significance, cross-referenced against ClinVar and refreshed on a weekly basis.
-*   **Analysis export** — results can be exported as a strict `.vcf` (VCFv4.2) file with proper headers, ready to open in other genomics tools.
+*   **Purpose** - accurate comparison of a patient's gene sequence against a reference using pairwise sequence alignment, covering both simple substitutions and insertions/deletions.
+*   **Reference handling** - reference sequences and annotations are fetched from NCBI automatically and cached locally per gene, so repeated analyses of the same gene don't require a new download.
+*   **Interface** - a lightweight, straightforward interface built with CustomTkinter.
+*   **Disease database** - local database of known variants and their clinical significance, cross-referenced against ClinVar and refreshed on a weekly basis.
+*   **Analysis export** - results can be exported as a strict `.vcf` file, ready to open in other genomics tools.
 
 * * *
 
@@ -61,22 +61,21 @@ Follow these steps to run the project locally.
 ### Usage
 
 1. Launch the application.
-2. Load the patient's gene sequence file in `.fasta.gz` format. The file must contain exactly one sequence — a single gene, not a full chromosome.
+2. Load the patient's gene sequence file in `.fasta.gz` format. The file must contain exactly one sequence - a single gene, not a full chromosome.
 3. Enter the official gene name (for example, `TP53`).
-4. Click **Analyse**. The app will download and cache the reference automatically (first run only), align the patient's sequence, translate it, and detect mutations.
+4. Click **Analyse**. The app will download and cache the reference automatically, align the patient's sequence, translate it, and detect mutations.
 5. Review the results in the main window and export them if needed.
 
 ### How the Analysis Works
 
 *   **One gene, one file.** Each analysis run covers a single gene; the input file must contain exactly one sequence.
-*   **A real email is required.** `config.cfg` must contain a valid email address — NCBI requires this to identify API requests, and a placeholder address can get requests blocked.
-*   **DNA-level alignment comes first.** The patient's full sequence is aligned against the reference at the DNA level *before* coding regions are extracted, so insertions and deletions are accounted for rather than assumed away.
-*   **A single canonical transcript is used per gene** — the official MANE Select transcript when tagged, otherwise the transcript with the longest coding sequence.
+*   **A real email is required.** `config.cfg` must contain a valid email address - NCBI requires this to identify API requests, and a placeholder address can get requests blocked.
+*   **A single canonical transcript is used per gene** - the official MANE Select transcript when tagged, otherwise the transcript with the longest coding sequence.
 *   **Translation stops at the first stop codon**, matching how translation actually terminates in a cell, so stop-codon mutations (premature stops, stop-loss) are captured correctly instead of translating through them.
-*   **Detected mutation types** currently include substitutions, insertions, deletions, premature stop codons (nonsense), and stop-loss variants. Frameshift mutations are not labeled as a distinct category yet — they typically surface as a run of substitutions after the shift point or a moved stop codon.
-*   **Not supported yet:** whole-chromosome input, multiple transcripts per gene, and large structural rearrangements (e.g. inversions) — the aligner assumes the patient and reference sequences are otherwise in the same order.
+*   **Detected mutation types** currently include substitutions, insertions, deletions, premature stop codons (nonsense), and stop-loss variants. Frameshift mutations are not labeled as a distinct category - they typically surface as a run of substitutions after the shift point or a moved stop codon.
+*   **Not supported:** whole-chromosome input, multiple transcripts per gene, and large structural rearrangements (e.g. inversions) - the aligner assumes the patient and reference sequences are otherwise in the same order.
 
-_Note: if errors or crashes occur, the full session history is saved to `logs.log`. To adjust working parameters, limits, or customize algorithms for specific use cases, edit the `config.cfg` file._
+_Note: if errors or crashes occur, the full session history is saved to `logs.log`. To adjust working parameters, edit the `config.cfg` file._
 
 * * *
 
@@ -94,4 +93,4 @@ _Note: if errors or crashes occur, the full session history is saved to `logs.lo
 
 ### Authors
 
-**Metsler Albert** — *Developer*, 2026
+**Metsler Albert** - *Developer*, 2026
