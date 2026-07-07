@@ -1,5 +1,5 @@
-# GeneAnalyzerX v1.0 - Quick Guide
-GeneAnalyzerX is a lightweight tool that compares a patient's DNA sequence for a single gene against a healthy reference from NCBI, and reports exactly what differs. It runs mostly offline: reference data is downloaded once per gene and cached locally, so the tool works on any laptop **without** needing cloud infrastructure.
+# GeneAnalyserX v1.0 - Quick Guide
+GeneAnalyserX is a lightweight tool that compares a patient's DNA sequence for a single gene against a healthy reference from NCBI, and reports exactly what differs. It runs mostly offline: reference data is downloaded once per gene and cached locally, so the tool works on any laptop **without** needing cloud infrastructure.
 App uses Biopython and CustomTkinter libraries.
 
 **YOU MUST SET A REAL EMAIL ADDRESS IN CONFIG.CFG BEFORE USE**

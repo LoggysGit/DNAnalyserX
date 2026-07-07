@@ -1,84 +1,97 @@
-# DNAnalyserX
+# GeneAnalyserX v1.0
 
-DNAnalyserX - программное обеспечение для анализа локальных участков ДНК человека. ПО позволяет эффективно выявлять точечные мутации, сопоставлять их с базой данных ClinVar и определять связанные с ними генетические заболевания.
-
-* * *
-
-### Функционал
-
-Ключевые возможности и особенности проекта:
-
-*   **Предназначеие** - эффективное сравнение отрезков ДНК на основе реальных алгоритмов биоинформатики (Смит-Ватерман).
-*   **Оптимизация** - Использование numba и С-оптимизация математических функций.
-*   **Интерфейс** - Легкий и интуитивный интерфейс на CustomTk.
-*   **Автоматическое обновление баз данных** - Обновление данных о заболеваниях каждую неделю.
-*   **Экспорт анализа** - Возможность сохранить результат анализа в .vcf формате.
+GeneAnalyserX is a software tool for analyzing local segments of human DNA. It compares a patient's sequence for a single gene against a reference from NCBI, detects point mutations, cross-references them against the ClinVar database, and reports the genetic diseases associated with each match.
 
 * * *
 
-### Требования
+### Features
 
-Убедитесь, что у вас установлены:
+Key capabilities and design choices:
+
+*   **Purpose** — accurate comparison of a patient's gene sequence against a reference using pairwise sequence alignment (Biopython `PairwiseAligner`, global alignment with affine gap penalties), covering both simple substitutions and insertions/deletions.
+*   **Reference handling** — reference sequences and annotations are fetched from NCBI automatically and cached locally per gene, so repeated analyses of the same gene don't require a new download.
+*   **Interface** — a lightweight, straightforward interface built with CustomTkinter.
+*   **Disease database** — local database of known variants and their clinical significance, cross-referenced against ClinVar and refreshed on a weekly basis.
+*   **Analysis export** — results can be exported as a strict `.vcf` (VCFv4.2) file with proper headers, ready to open in other genomics tools.
+
+* * *
+
+### Requirements
+
+Make sure you have installed:
 
 *   Git
-*   Язык программирования Python (желательно, через VS Code)
-*   Менеджер пакетов (pip)
+*   Python (preferably via VS Code)
+*   A package manager (pip)
 
-### Инструкция по запуску
+### Setup Instructions
 
-Следуйте этим шагам, чтобы развернуть проект локально.
+Follow these steps to run the project locally.
 
-1.  **Клонируйте репозиторий:**
-    
-        git clone https://github.com/LoggysGit/DNAnalyserX
-        cd DNAnalyserX
-    
-2.  **Настройте виртуальное окружение:**
+1.  **Clone the repository:**
+
+        git clone https://github.com/LoggysGit/GeneAnalyserX
+        cd GeneAnalyserX
+
+2.  **Create a virtual environment:**
 
         python -m venv .venv
 
-3. **Активируйте виртуальное окружение:**
+3.  **Activate the virtual environment:**
 
-    Windows Powershell:
+    Windows PowerShell:
 
         Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
         .venv\Scripts\Activate.ps1
 
     Git Bash:
-        
+
         source .venv/Scripts/activate
-    
-4.  **Установите зависимости:** 
+
+4.  **Install dependencies:**
 
         pip install -r requirements.txt
 
-5. **Запустите приложение:**
+5.  **Set your real email in `config.cfg`**
+
+6.  **Run the application:**
 
         python app.py
 
-### Использование
+### Usage
 
-1. Запустите приложение.
+1. Launch the application.
+2. Load the patient's gene sequence file in `.fasta.gz` format. The file must contain exactly one sequence — a single gene, not a full chromosome.
+3. Enter the official gene name (for example, `TP53`).
+4. Click **Analyse**. The app will download and cache the reference automatically (first run only), align the patient's sequence, translate it, and detect mutations.
+5. Review the results in the main window and export them if needed.
 
-2. Загрузите файл генома в формате .fasta.gz.
+### How the Analysis Works
 
-3. Введите данные хромосомы и стартовой позиции файла.
+*   **One gene, one file.** Each analysis run covers a single gene; the input file must contain exactly one sequence.
+*   **A real email is required.** `config.cfg` must contain a valid email address — NCBI requires this to identify API requests, and a placeholder address can get requests blocked.
+*   **DNA-level alignment comes first.** The patient's full sequence is aligned against the reference at the DNA level *before* coding regions are extracted, so insertions and deletions are accounted for rather than assumed away.
+*   **A single canonical transcript is used per gene** — the official MANE Select transcript when tagged, otherwise the transcript with the longest coding sequence.
+*   **Translation stops at the first stop codon**, matching how translation actually terminates in a cell, so stop-codon mutations (premature stops, stop-loss) are captured correctly instead of translating through them.
+*   **Detected mutation types** currently include substitutions, insertions, deletions, premature stop codons (nonsense), and stop-loss variants. Frameshift mutations are not labeled as a distinct category yet — they typically surface as a run of substitutions after the shift point or a moved stop codon.
+*   **Not supported yet:** whole-chromosome input, multiple transcripts per gene, and large structural rearrangements (e.g. inversions) — the aligner assumes the patient and reference sequences are otherwise in the same order.
 
-4. Нажмите на кнопку Analyse. Приложение само высчитает мутации и найдет совпадения с известными заболеваниями.
-
-5. Экспортируйте файл.
-
-_Примечание: При возникновении ошибок или сбоев полная история сессии сохраняется в файле logs.log. Для изменения рабочих параметров, лимитов и кастомизации алгоритмов под специфические задачи пользователь может отредактировать файл конфигурации config.cfg._
+_Note: if errors or crashes occur, the full session history is saved to `logs.log`. To adjust working parameters, limits, or customize algorithms for specific use cases, edit the `config.cfg` file._
 
 * * *
 
-### Источники, использовавшиеся во время разработки
+### Sources Used During Development
+
 * [ClinVar](https://www.ncbi.nlm.nih.gov/clinvar/)
 * [Wikipedia](https://www.wikipedia.org/)
 * [StackOverflow](https://stackoverflow.com/questions)
 
-### Авторы
 
-**Metsler Albert** - *Разработчик* - [Github](https://github.com/LoggysGit/)
+### Built With
+ 
+* [Biopython](https://biopython.org/)
+* [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter)
 
-Проект разработан в рамках экзаменационной работы ITStep в 2026 году.
+### Authors
+
+**Metsler Albert** — *Developer*, 2026
