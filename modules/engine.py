@@ -349,20 +349,21 @@ class Core:
                 local_pos, mutation_type, hgvs = anomaly["pos"], anomaly["type"], anomaly["hgvs"]
                 ref_fetched, alt_fetched = anomaly["ref"], anomaly["alt"]
 
+                #chromosome, position, ref_allele, alt_allele, clnvs, clinical_significance, disease_name 
                 mutation = self.data_manager.disease_database.find_mutation(hgvs, gene)
                 if mutation:
-                    chrid, p, vs, refer, alter, sign, name = mutation
+                    chrid, p, refer, alter, vs, sign, name = mutation
 
                     # Process values
-                    pos = p if p != None else local_pos
-                    clnvs = vs if vs != None else mutation_type
+                    pos : int = p if p != None else local_pos
+                    clnvs : str = vs if vs != None else mutation_type
 
-                    ref = refer if refer != None else ref_fetched
-                    alt = alter if alter != None else alt_fetched
+                    ref : str = refer if refer != None else ref_fetched
+                    alt : str = alter if alter != None else alt_fetched
 
-                    chrom = chrid if chrid != None else "?"
+                    chrom : int = chrid if chrid != None else "?"
 
-                    full_mutations_data.append([a+1, f"chr{chrom}", gene, pos, clnvs, ref, alt, sign, name])
+                    full_mutations_data.append([a+1, f"chr{chrom}", gene, hgvs, pos, ref, alt, clnvs, sign, name])
 
             except IndexError as e:
                 lib.log(f"Data format structure error: {e}")

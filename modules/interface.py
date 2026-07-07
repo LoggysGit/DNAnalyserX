@@ -1,7 +1,6 @@
 import os
 import re
 
-import time
 import queue
 
 import tkinter as tk
@@ -11,160 +10,206 @@ import customtkinter as ctk
 import modules.lib as lib
 
 class MutationDetailWindow(ctk.CTkToplevel):
+    SIGNIFICANCE_COLORS = {
+        "pathogenic":            "#e74c3c",
+        "likely pathogenic":     "#e67e22",
+        "uncertain significance": "#f1c40f",
+        "conflicting":           "#f1c40f",
+        "likely benign":         "#2ecc71",
+        "benign":                "#27ae60",
+    }
+    DEFAULT_SIGNIFICANCE_COLOR = "#7f8c8d"
+
     def __init__(self, parent, ui_colors, mutation):
         super().__init__(parent)
-        
+
         self.ui_colors = ui_colors
-        
+
         self.title("Mutation Detailed Information")
-        self.geometry("420x460")
+        self.geometry("460x560")
         self.resizable(False, False)
         self.configure(fg_color=self.ui_colors.get("bg_main", "#1a1a1a"))
-        
+
         self.transient(parent)
         self.grab_set()
-        
-        if len(mutation) < 10: return
-        self.set_info(mutation)
 
+        if len(mutation) < 11:
+            self.destroy()
+            return
+
+        self.set_info(mutation)
         self.init_ui()
 
     def set_info(self, mut):
-        self.id =           mut[0]
-        self.chrn =         mut[1]
-        self.gene =         mut[2]
-        self.pos_start =    mut[3]
-        self.pos_end =      mut[4]
-        self.ref =          mut[5]
-        self.alt =          mut[6]
-        self.vs =           mut[7]
-        self.sign =         mut[8]
-        self.dname =        mut[9]
+        self.id =         mut[0]
+        self.chrn =       mut[1]
+        self.gene =       mut[2]
+        self.hgvs =       mut[3]
+        self.pos_start =  mut[4]
+        self.pos_end =    mut[5]
+        self.ref =        mut[6]
+        self.alt =        mut[7]
+        self.vs =         mut[8]
+        self.sign =       mut[9]
+        self.dname =      mut[10]
+
+    def get_significance_color(self):
+        sign_lower = str(self.sign).lower()
+        for key, color in self.SIGNIFICANCE_COLORS.items():
+            if key in sign_lower: return color
+        return self.DEFAULT_SIGNIFICANCE_COLOR
 
     def init_ui(self):
         main_container = ctk.CTkFrame(self, fg_color="transparent")
-        main_container.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        # --- 1. TOP METADATA BLOCK ---
-        self.lbl_clnvs_idx = ctk.CTkLabel(
-            main_container,
-            text=f"{self.vs} № {self.id}",
-            font=("Arial", 28, "bold"),
-            text_color=self.ui_colors.get("text_main", "#ffffff")
+        main_container.pack(fill="both", expand=True, padx=22, pady=22)
+
+        # - HGVS Header -
+        header_frame = ctk.CTkFrame(main_container, fg_color="transparent")
+        header_frame.pack(fill="x", pady=(0, 4))
+
+        self.lbl_hgvs = ctk.CTkLabel(
+            header_frame,
+            text=str(self.hgvs),
+            font=("Consolas", 24, "bold"),
+            text_color=self.ui_colors.get("text_main", "#ffffff"),
+            anchor="w"
         )
-        self.lbl_clnvs_idx.pack(anchor="w", pady=(0, 4))
-        
-        # Associated clinical disease description text line
+        self.lbl_hgvs.pack(side="left", anchor="w")
+
+        self.lbl_gene_tag = ctk.CTkLabel(
+            header_frame,
+            text=f"  {self.gene}",
+            font=("Arial", 20, "bold"),
+            text_color=self.ui_colors.get("text_muted", "#aaaaaa"),
+            anchor="w"
+        )
+        self.lbl_gene_tag.pack(side="left", anchor="s", pady=(0, 4))
+
+        self.lbl_meta_id = ctk.CTkLabel(
+            main_container,
+            text=f"{self.vs}  ·  №{self.id}",
+            font=("Arial", 13),
+            text_color=self.ui_colors.get("text_muted", "#aaaaaa"),
+            anchor="w"
+        )
+        self.lbl_meta_id.pack(anchor="w", pady=(0, 16))
+
+        # - Significance badge -
+        sig_color = self.get_significance_color()
+
+        self.significance_badge = ctk.CTkFrame(
+            main_container,
+            fg_color=sig_color,
+            corner_radius=14,
+            height=32
+        )
+        self.significance_badge.pack(anchor="w", pady=(0, 16))
+        self.significance_badge.pack_propagate(False)
+
+        self.lbl_significance = ctk.CTkLabel(
+            self.significance_badge,
+            text=str(self.sign),
+            font=("Arial", 13, "bold"),
+            text_color="#1a1a1a"
+        )
+        self.lbl_significance.pack(padx=16, pady=4)
+
+        # - Disease description -
         self.lbl_disease = ctk.CTkLabel(
             main_container,
             text=f"Disease: {self.dname}",
-            font=("Arial", 16),
-            text_color=self.ui_colors.get("text_main", "#ffffff")
-        )
-        self.lbl_disease.pack(anchor="w", pady=(0, 4))
-        
-        self.lbl_significance = ctk.CTkLabel(
-            main_container,
-            text=f"Significance: {self.sign}",
-            font=("Arial", 16),
-            text_color=self.ui_colors.get("text_main", "#ffffff")
-        )
-        self.lbl_significance.pack(anchor="w", pady=(0, 4))
-
-        self.lbl_chromosome = ctk.CTkLabel(
-            main_container,
-            text=f"Chromosome : {self.chrn}",
             font=("Arial", 15),
-            text_color=self.ui_colors.get("text_muted", "#aaaaaa")
+            text_color=self.ui_colors.get("text_main", "#ffffff"),
+            anchor="w",
+            justify="left",
+            wraplength=410
         )
-        self.lbl_chromosome.pack(anchor="w", pady=(0, 12))
-        
-        # --- 2. HORIZONTAL COORDINATES PANEL ---
+        self.lbl_disease.pack(anchor="w", pady=(0, 16))
+
+        # - Chromosome / Start / End -
         lbl_position_title = ctk.CTkLabel(
             main_container,
-            text="Position",
+            text="Genomic Position",
             font=("Arial", 13, "bold"),
             text_color=self.ui_colors.get("text_muted", "#aaaaaa")
         )
-        lbl_position_title.pack(anchor="w", pady=(0, 2))
+        lbl_position_title.pack(anchor="w", pady=(0, 4))
 
         coords_frame = ctk.CTkFrame(
             main_container,
             fg_color=self.ui_colors.get("bg_panel", "#242424"),
             border_color=self.ui_colors.get("border", "#3a3a3a"),
             border_width=1,
-            corner_radius=20
+            corner_radius=16
         )
         coords_frame.pack(fill="x", pady=(0, 20))
-        
+
         coords_frame.grid_columnconfigure(0, weight=1)
         coords_frame.grid_columnconfigure(1, weight=1)
-        
-        self.lbl_start_pos = ctk.CTkLabel(
-            coords_frame,
-            text=f"Start: {self.pos_start}",
-            font=("Arial", 15, "bold"),
-            text_color=self.ui_colors.get("text_main", "#ffffff")
-        )
-        self.lbl_start_pos.grid(row=0, column=0, sticky="w", padx=(20, 10), pady=10)
-        
-        self.lbl_end_pos = ctk.CTkLabel(
-            coords_frame,
-            text=f"End: {self.pos_end}",
-            font=("Arial", 15, "bold"),
-            text_color=self.ui_colors.get("text_main", "#ffffff")
-        )
-        self.lbl_end_pos.grid(row=0, column=1, sticky="w", padx=(10, 20), pady=10)
-        
-        # --- 3. ALLELES SEQUENCES SPLIT VIEW ---
+        coords_frame.grid_columnconfigure(2, weight=1)
+
+        def _coord_cell(col, label, value):
+            cell = ctk.CTkFrame(coords_frame, fg_color="transparent")
+            cell.grid(row=0, column=col, sticky="nsew", padx=14, pady=12)
+
+            lbl_top = ctk.CTkLabel(
+                cell, text=label, font=("Arial", 11, "bold"),
+                text_color=self.ui_colors.get("text_muted", "#aaaaaa"), anchor="w"
+            )
+            lbl_top.pack(anchor="w")
+
+            lbl_bottom = ctk.CTkLabel(
+                cell, text=str(value), font=("Arial", 15, "bold"),
+                text_color=self.ui_colors.get("text_main", "#ffffff"), anchor="w"
+            )
+            lbl_bottom.pack(anchor="w")
+            return lbl_top, lbl_bottom
+
+        self.lbl_chromosome_pair = _coord_cell(0, "Chromosome", self.chrn)
+        self.lbl_start_pos_pair = _coord_cell(1, "Start", self.pos_start)
+        self.lbl_end_pos_pair = _coord_cell(2, "End", self.pos_end)
+
+        # - Sequences -
         alleles_container = ctk.CTkFrame(main_container, fg_color="transparent")
-        alleles_container.pack(fill="both", expand=True, pady=(0, 15))
-        
+        alleles_container.pack(fill="both", expand=True, pady=(0, 20))
+
         alleles_container.grid_columnconfigure(0, weight=1, uniform="alleles")
         alleles_container.grid_columnconfigure(1, weight=1, uniform="alleles")
         alleles_container.grid_rowconfigure(1, weight=1)
-        
+
         lbl_ref_header = ctk.CTkLabel(
-            alleles_container,
-            text="Ref",
-            font=("Arial", 16, "bold"),
+            alleles_container, text="Ref", font=("Arial", 16, "bold"),
             text_color=self.ui_colors.get("text_main", "#ffffff")
         )
         lbl_ref_header.grid(row=0, column=0, sticky="w", padx=(5, 5), pady=(0, 4))
-        
+
         lbl_alt_header = ctk.CTkLabel(
-            alleles_container,
-            text="Alt",
-            font=("Arial", 16, "bold"),
+            alleles_container, text="Alt", font=("Arial", 16, "bold"),
             text_color=self.ui_colors.get("text_main", "#ffffff")
         )
         lbl_alt_header.grid(row=0, column=1, sticky="w", padx=(10, 0), pady=(0, 4))
-        
+
         self.txt_ref = ctk.CTkTextbox(
-            alleles_container,
-            font=("Consolas", 14),
+            alleles_container, font=("Consolas", 14),
             fg_color=self.ui_colors.get("bg_panel", "#242424"),
             border_color=self.ui_colors.get("border", "#3a3a3a"),
-            border_width=1,
-            corner_radius=8,
-            activate_scrollbars=True
+            border_width=1, corner_radius=8, activate_scrollbars=True
         )
         self.txt_ref.grid(row=1, column=0, sticky="nsew", padx=(0, 5))
-        self.txt_ref.insert("1.0", self.ref)
-        
+        self.txt_ref.insert("1.0", str(self.ref))
+        self.txt_ref.configure(state="disabled")
+
         self.txt_alt = ctk.CTkTextbox(
-            alleles_container,
-            font=("Consolas", 14),
+            alleles_container, font=("Consolas", 14),
             fg_color=self.ui_colors.get("bg_panel", "#242424"),
             border_color=self.ui_colors.get("border", "#3a3a3a"),
-            border_width=1,
-            corner_radius=8,
-            activate_scrollbars=True
+            border_width=1, corner_radius=8, activate_scrollbars=True
         )
         self.txt_alt.grid(row=1, column=1, sticky="nsew", padx=(5, 0))
-        self.txt_alt.insert("1.0", self.alt)
-        
-        # --- 4. BOTTOM DISMISSAL CONTROLS ---
+        self.txt_alt.insert("1.0", str(self.alt))
+        self.txt_alt.configure(state="disabled")
+
+        # - Close Btn -
         btn_close = ctk.CTkButton(
             main_container,
             text="Close",
@@ -347,7 +392,7 @@ class App(ctk.CTk):
         self.system_command_buffer = sys_cmd_buff
 
         self.title("Gene Analyzer X")
-        self.geometry("1000x650")
+        self.geometry("1100x650")
 
         ctk.set_appearance_mode("dark")
 
@@ -355,6 +400,8 @@ class App(ctk.CTk):
 
         self.analysis_progress_window = None
         self.db_update_progress_window = None
+
+        self.last_gene = None
 
         self.init_colors()
         self.configure(fg_color=self.ui_colors["bg_main"])
@@ -398,7 +445,7 @@ class App(ctk.CTk):
                         bd=0)
 
     def init_ui(self):
-        self.grid_columnconfigure(0, weight=0, minsize=230)
+        self.grid_columnconfigure(0, weight=0, minsize=180)
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
@@ -531,7 +578,6 @@ class App(ctk.CTk):
             hover_color=self.ui_colors.get("btn_file_hover", "#3a3a3a"),
             text_color=self.ui_colors["text_muted"],
             height=35,
-            state="disabled",
             command=self.export_to_vcf
         )
         self.btn_export_vcf.pack(fill="x", padx=15, pady=(0, 20))
@@ -552,10 +598,10 @@ class App(ctk.CTk):
             rowheight=24
         )
         style.configure( "Treeview.Heading",
-            font=("Arial", 10, "bold")
+            font=("Arial", 8, "bold")
         )
 
-        columns = ("id", "chr", "gene", "position", "ref", "alt", "clnvs", "clnsign", "name")
+        columns = ("id", "chr", "gene", "hgvs", "position", "ref", "alt", "clnvs", "clnsign", "name")
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings")
         
         self.tree.tag_configure(
@@ -571,6 +617,7 @@ class App(ctk.CTk):
         self.tree.heading("id", text="№")
         self.tree.heading("chr", text="CHR")
         self.tree.heading("gene", text="Gene")
+        self.tree.heading("hgvs", text="HGVS")
         self.tree.heading("position", text="Position")
         self.tree.heading("ref", text="Ref")
         self.tree.heading("alt", text="Alt")
@@ -581,10 +628,11 @@ class App(ctk.CTk):
         self.tree.column("id", width=20, minwidth=20, anchor="center")
         self.tree.column("chr", width=35, minwidth=35, anchor="center")
         self.tree.column("gene", width=55, minwidth=45, anchor="center")
+        self.tree.column("hgvs", width=55, minwidth=45, anchor="center")
         self.tree.column("position", width=110, minwidth=100, anchor="w")
         self.tree.column("ref", width=75, minwidth=65, anchor="center")
         self.tree.column("alt", width=75, minwidth=65, anchor="center")
-        self.tree.column("clnvs", width=105, minwidth=95, anchor="center")
+        self.tree.column("clnvs", width=100, minwidth=90, anchor="center")
         self.tree.column("clnsign", width=120, minwidth=100, anchor="center")
         self.tree.column("name", width=240, minwidth=180, anchor="w")
 
@@ -621,29 +669,38 @@ class App(ctk.CTk):
         self.entry_gene_id.delete(0, "end")
 
         for item in self.tree.get_children(): self.tree.delete(item)
-            
-        self.btn_export_vcf.configure(state="disabled")
 
     def on_tree_double_click(self, e):
-        selected_item = self.tree.selection()[0]
-        if not selected_item: return
+        selection = self.tree.selection()
+        if not selection: return
+        selected_item = selection[0]
 
         row_values = self.tree.item(selected_item, "values")
 
-        mock_data = [
-            row_values[0],
-            row_values[1],
-            row_values[2],
-            row_values[3],
-            str(int(row_values[3]) + len(row_values[5]) - 1),
-            row_values[4],
-            row_values[5],
-            row_values[6],
-            row_values[7],
-            row_values[8]
+        id_, chr_, gene, hgvs, position, ref, alt, clnvs, clnsign, name = row_values
+
+        try:
+            pos_start = int(position)
+            pos_end = pos_start + len(ref) - 1
+        except (TypeError, ValueError):
+            pos_start = position
+            pos_end = position
+
+        mutation_data = [
+            id_,
+            chr_,
+            gene,
+            hgvs,
+            pos_start,
+            pos_end,
+            ref,
+            alt,
+            clnvs,
+            clnsign,
+            name,
         ]
 
-        MutationDetailWindow(self, self.ui_colors, mock_data)
+        MutationDetailWindow(self, self.ui_colors, mutation_data)
 
     def run_analysis(self):
         gene_id = self.entry_gene_id.get()
@@ -651,19 +708,19 @@ class App(ctk.CTk):
             # Interface
             self.btn_analyse.configure(state="disabled")
             self.analysis_progress_window = ProgressWindow(self, self.ui_colors, 7, "Analysis Progress")
-
             # Send a command
-            self.after(50, lambda: self.system_command_buffer.put(("RUN", [self.current_data_file_path, gene_id])))
-            
-        else: lib.dbg("Cannot start the analysis.")
+            self.last_gene = gene_id
+            self.system_command_buffer.put(("RUN", [self.current_data_file_path, gene_id]))
 
-        self.clear_all_inputs()
+            self.clear_all_inputs()
+            
+        else: lib.log("Cannot start the analysis.")
             
     def export_to_vcf(self):
         tree_items = self.tree.get_children()
-        if not tree_items: return
+        if not tree_items or not self.last_gene: return
 
-        default_filename = f"gene_{self.entry_gene_id.get()}_export.vcf"
+        default_filename = f"gene_{self.last_gene}_export.vcf"
         file_path = filedialog.asksaveasfilename(
             defaultextension=".vcf",
             filetypes=[("VCF Files", "*.vcf"), ("All Files", "*.*")],
@@ -676,20 +733,34 @@ class App(ctk.CTk):
         parsed_mutations = []
         for item_id in tree_items:
             row_values = self.tree.item(item_id, "values")
-
+            #("id", "chr", "gene", "hgvs", "position", "ref", "alt", "clnvs", "clnsign", "name")
             parsed_mutations.append({
-                "id": row_values[0],
-                "chr": row_values[1],
-                "position": row_values[2],
-                "ref": row_values[3],
-                "alt": row_values[4],
-                "clnvs": row_values[5],
-                "clnsign": row_values[6],
-                "name": row_values[7]
+                "id":       row_values[0],
+                "chr":      row_values[1],
+                "gene":      row_values[2],
+                "hgvs":      row_values[3],
+                "position": row_values[4],
+                "ref": row_values[5],
+                "alt": row_values[6],
+                "clnvs": row_values[7],
+                "clnsign": row_values[8],
+                "name": row_values[9]
             })
 
-        target_chrom_name = f"chr{self.entry_chr.get()}"
-        self.system_command_buffer.put(("EXPORT", [parsed_mutations, target_chrom_name, file_path]))
+        self.system_command_buffer.put(("EXPORT", [parsed_mutations, self.last_gene, file_path]))
+
+    def close_progressbars(self):
+        # Close analysis progressbar
+        if self.analysis_progress_window and self.analysis_progress_window.winfo_exists():
+            self.analysis_progress_window.grab_release()
+            self.analysis_progress_window.destroy()
+            self.analysis_progress_window = None
+        # Close DB update process progressbar
+        if self.db_update_progress_window and self.db_update_progress_window.winfo_exists():
+            self.db_update_progress_window.update_progress(1, "DB update completed.")
+            self.db_update_progress_window.grab_release()
+            self.db_update_progress_window.destroy()
+            self.db_update_progress_window = None
 
     # === Command buffer handler === #
     def read_buffer(self):
@@ -700,9 +771,10 @@ class App(ctk.CTk):
                 match command:
                     case "MUTATION":
                         try:
-                            i, chr, gene, pos, clnvs, ref, alt, sign, name = payload
+                            #a+1, f"chr{chrom}", gene, hgvs, pos, ref, alt, clnvs, sign, name
+                            i, chr, gene, hgvs, pos, ref, alt, clnvs, sign, name = payload
                             self.tree.insert("", "end", 
-                                values=(i, chr, gene, pos, ref, alt, clnvs, sign, name), 
+                                values=(i, chr, gene, hgvs, pos, ref, alt, clnvs, sign, name), 
                                 tags=("missing" if name in ["Not found", "Unknown", "None"] else "in_database")
                             )
                         except Exception as e: lib.log(f"Error parsing mutation {payload}: {e}.")
@@ -718,18 +790,7 @@ class App(ctk.CTk):
 
                     case "DONE":
                         self.btn_analyse.configure(state="normal")
-
-                        # Close analysis progressbar
-                        if self.analysis_progress_window and self.analysis_progress_window.winfo_exists():
-                            self.analysis_progress_window.grab_release()
-                            self.analysis_progress_window.destroy()
-                            self.analysis_progress_window = None
-                        # Close DB update process progressbar
-                        if self.db_update_progress_window and self.db_update_progress_window.winfo_exists():
-                            self.db_update_progress_window.update_progress(1, "DB update completed.")
-                            self.db_update_progress_window.grab_release()
-                            self.db_update_progress_window.destroy()
-                            self.db_update_progress_window = None
+                        self.close_progressbars()
 
                     case _: pass
                         

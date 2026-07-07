@@ -42,8 +42,8 @@ def system_thread():
                 lib.log("Analysing has ended.")
 
             case "EXPORT":
-                mut_list, chr_ref, exp_dir = payload
-                data_manager.save_mutations_to_vcf(exp_dir, mut_list, chr_ref)
+                mut_list, gene_ref, exp_dir = payload
+                data_manager.save_mutations_to_vcf(exp_dir, mut_list, gene_ref)
 
             case _: pass
         

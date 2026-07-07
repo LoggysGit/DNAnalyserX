@@ -123,28 +123,49 @@ class DataManager:
             "##source=DNAnalyserX_Engine",
             f"##reference={reference_name}",
             '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of structural variant">',
+            '##INFO=<ID=HGVS,Number=1,Type=String,Description="HGVS protein notation">',
             '##INFO=<ID=SIG,Number=1,Type=String,Description="Clinical significance from ClinVar">',
             '##INFO=<ID=DIS,Number=1,Type=String,Description="Associated disease name">',
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO"
         ]
+
+        def safe_str(value, default="."):
+            if value is None: return default
+            text = str(value).strip()
+            return text if text else default
+        
+        def sanitize_str(value, default="."):
+            text = safe_str(value, default)
+            return text.replace(" ", "_").replace(";", "_").replace("=", "_").replace(",", "_")
 
         try:
             with open(path, "w", encoding="utf-8") as f_out:
                 for header in header_lines: f_out.write(header + "\n")
 
                 for item in mutations_list:
-                    chrom = item.get("chr", ".").strip()
-                    pos = item.get("position", ".").strip()
-                    ref = item.get("ref", ".").strip()
-                    alt = item.get("alt", ".").strip()
-                    clnvs = item.get("clnvs", "UNKNOWN").strip()
-                    significance = item.get("clnsign", "-").strip().replace(" ", "_")
-                    disease_name = item.get("name", "Not_found").strip().replace(" ", "_")
+                    chrom = safe_str(item.get("chr"))
+                    gene = safe_str(item.get("gene"))
+                    hgvs = safe_str(item.get("hgvs"))
+                    ref = safe_str(item.get("ref"))
+                    alt = safe_str(item.get("alt"))
+                    clnvs = sanitize_str(item.get("clnvs", "UNKNOWN"))
+                    significance = sanitize_str(item.get("clnsign", "-"))
+                    disease_name = sanitize_str(item.get("name", "Not_found"))
 
-                    info_block = f"SVTYPE={clnvs};SIG={significance};DIS={disease_name}"
+                    try:
+                        pos = int(item.get("position"))
+                        if pos <= 0: raise ValueError
 
-                    vcf_row = f"{chrom}\t{pos}\t.\t{ref}\t{alt}\t.\tPASS\t{info_block}\n"
-                    f_out.write(vcf_row)
+                    except (TypeError, ValueError):
+                        lib.log(f"Skipping VCF row: invalid POS '{item.get('position')}' for {gene} {hgvs}")
+                        skipped += 1
+                        continue
+
+                    if ref == "." or ref == "": ref = "N"
+                    if alt == "." or alt == "": alt = "N"
+
+                    info_block = f"SVTYPE={clnvs};SIG={significance};DIS={disease_name};GENE={gene};HGVS={hgvs}"
+                    f_out.append((chrom, pos, ref, alt, info_block))
 
             lib.log(f"VCF data exported in {path}.")
             return True
@@ -228,12 +249,12 @@ class DataManager:
                     alt_allele = tokens[33].strip().upper()
 
                     clinical_sig = tokens[6].strip()
-                    clnvs_id = tokens[30].strip()
+                    clnvs = tokens[1].strip()
                     disease_name = tokens[13].strip()
 
                     batch.append((
                         hgvs_key, chromosome, gene_symbol, position, 
-                        ref_allele, alt_allele, clnvs_id, clinical_sig, disease_name
+                        ref_allele, alt_allele, clnvs, clinical_sig, disease_name
                     ))
 
                     if len(batch) >= batch_size:

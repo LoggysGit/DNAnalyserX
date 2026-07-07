@@ -5,8 +5,6 @@ from datetime import datetime as dt
 
 import configparser
 
-IS_DEBUG = True
-
 # --- Paths --- #
 ENV = "win" if os.name == "nt" else "linux"
 
@@ -29,6 +27,8 @@ DISEASE_BASE_URL = config.get('GENERAL', 'DISEASE_BASE_URL')
 
 MAX_NUCL_LENGTH = config.getint('APP', 'MAX_NUCLEOTIDE_LENGTH', fallback=100000)
 USER_EMAIL = config.get('APP', 'EMAIL')
+
+IS_DEBUG = config.get('DEBUG', 'DEBUG')
 
 # --- Functions --- #
 def log(data):
