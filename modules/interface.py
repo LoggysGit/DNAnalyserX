@@ -704,7 +704,7 @@ class App(ctk.CTk):
 
     def run_analysis(self):
         gene_id = self.entry_gene_id.get()
-        if self.current_data_file_path and gene_id.strip() != "":
+        if self.current_data_file_path and gene_id.strip() != "" and lib.USER_EMAIL:
             # Interface
             self.btn_analyse.configure(state="disabled")
             self.analysis_progress_window = ProgressWindow(self, self.ui_colors, 7, "Analysis Progress")

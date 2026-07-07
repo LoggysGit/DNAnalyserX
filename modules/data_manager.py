@@ -123,6 +123,7 @@ class DataManager:
             "##source=DNAnalyserX_Engine",
             f"##reference={reference_name}",
             '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of structural variant">',
+            '##INFO=<ID=GENE,Number=1,Type=String,Description="Gene symbol">',
             '##INFO=<ID=HGVS,Number=1,Type=String,Description="HGVS protein notation">',
             '##INFO=<ID=SIG,Number=1,Type=String,Description="Clinical significance from ClinVar">',
             '##INFO=<ID=DIS,Number=1,Type=String,Description="Associated disease name">',
@@ -139,36 +140,44 @@ class DataManager:
             return text.replace(" ", "_").replace(";", "_").replace("=", "_").replace(",", "_")
 
         try:
+            rows = []
+            for item in mutations_list:
+                chrom = safe_str(item.get("chr"))
+                gene = safe_str(item.get("gene"))
+                hgvs = safe_str(item.get("hgvs"))
+                ref = safe_str(item.get("ref"))
+                alt = safe_str(item.get("alt"))
+                clnvs = sanitize_str(item.get("clnvs", "UNKNOWN"))
+                significance = sanitize_str(item.get("clnsign", "-"))
+                disease_name = sanitize_str(item.get("name", "Not_found"))
+
+                try:
+                    pos = int(item.get("position"))
+                    if pos <= 0: raise ValueError
+
+                except (TypeError, ValueError):
+                    lib.log(f"Skipping VCF row: invalid POS '{item.get('position')}' for {gene} {hgvs}")
+                    skipped += 1
+                    continue
+                
+                if ref == "." or ref == "": ref = "N"
+                if alt == "." or alt == "": alt = "N"
+
+                info_block = f"SVTYPE={clnvs};SIG={significance};DIS={disease_name};GENE={gene};HGVS={hgvs}"
+                rows.append((chrom, pos, ref, alt, info_block))
+
+            # Sort rows by position
+            rows.sort(key=lambda r: (r[0], r[1]))
+
             with open(path, "w", encoding="utf-8") as f_out:
                 for header in header_lines: f_out.write(header + "\n")
 
-                for item in mutations_list:
-                    chrom = safe_str(item.get("chr"))
-                    gene = safe_str(item.get("gene"))
-                    hgvs = safe_str(item.get("hgvs"))
-                    ref = safe_str(item.get("ref"))
-                    alt = safe_str(item.get("alt"))
-                    clnvs = sanitize_str(item.get("clnvs", "UNKNOWN"))
-                    significance = sanitize_str(item.get("clnsign", "-"))
-                    disease_name = sanitize_str(item.get("name", "Not_found"))
+                for chrom, pos, ref, alt, info_block in rows:
+                    vcf_row = f"{chrom}\t{pos}\t.\t{ref}\t{alt}\t.\tPASS\t{info_block}\n"
+                    f_out.write(vcf_row)
 
-                    try:
-                        pos = int(item.get("position"))
-                        if pos <= 0: raise ValueError
-
-                    except (TypeError, ValueError):
-                        lib.log(f"Skipping VCF row: invalid POS '{item.get('position')}' for {gene} {hgvs}")
-                        skipped += 1
-                        continue
-
-                    if ref == "." or ref == "": ref = "N"
-                    if alt == "." or alt == "": alt = "N"
-
-                    info_block = f"SVTYPE={clnvs};SIG={significance};DIS={disease_name};GENE={gene};HGVS={hgvs}"
-                    f_out.append((chrom, pos, ref, alt, info_block))
-
-            lib.log(f"VCF data exported in {path}.")
-            return True
+                lib.log(f"VCF data exported in {path}.")
+                return True
         
         except Exception as e:
             lib.log(f"VCF export critical failure: {e}")

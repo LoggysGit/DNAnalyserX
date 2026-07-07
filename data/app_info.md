@@ -1,31 +1,50 @@
-# GeneAnalyzerX - Quick Guide
+# GeneAnalyzerX v1.0 - Quick Guide
+GeneAnalyzerX is a lightweight tool that compares a patient's DNA sequence for a single gene against a healthy reference from NCBI, and reports exactly what differs. It runs mostly offline: reference data is downloaded once per gene and cached locally, so the tool works on any laptop **without** needing cloud infrastructure.
+App uses Biopython and CustomTkinter libraries.
 
-GeneAnalyzerX is a simple tool that helps you find mutations in a patient's DNA. It takes the patient's genetic data, automatically compares it to a healthy standard template from the internet (NCBI), and shows you exactly what went wrong.
+**YOU MUST SET A REAL EMAIL ADDRESS IN CONFIG.CFG BEFORE USE**
+
+NCBI requires a valid email to identify requests to their servers. A placeholder or fake address can get your requests blocked.
 
 ---
 
 ## What You Need to Load
-* **Patient File (`.fasta.gz`):** The actual DNA sequence file of the patient you want to test.
-* **Gene Name:** The official name of the gene you are investigating (for example: **TP53** or **BRCA1**).
+* **Patient File (`.fasta.gz`):** A DNA sequence file containing exactly **one** gene. The file must not contain more than one sequence, and it should not be a whole chromosome — this tool analyzes one gene at a time.
+* **Gene Name:** The official gene symbol you want to check (for example: **TP53** or **BRCA1**).
 
 ---
 
 ## How It Works
-* **Step 1: Automatic Download** - You type in the gene name, and the app automatically fetches the correct healthy map and reference sequence from official NCBI database servers.
+* **Step 1: Automatic Download**: You type in the gene name, and the app fetches the matching reference sequence and its annotation from NCBI. Both files are cached locally, so this only happens once per gene - every following analysis reuses the cached copy. **Keep in mind that you must have enough disk memory for files.**.
 
-* **Step 2: Exon Extraction** - The engine cuts out only the important coding parts (exons) of the gene from both the healthy template and your patient's file.
+* **Step 2: DNA Alignment**: Before anything is cut out, the patient's full sequence is aligned against the reference at the DNA level. This step accounts for insertions and deletions, not just simple letter swaps - it's what allows the next step to correctly locate coding regions even if the patient's sequence is a slightly different length than the reference.
 
-* **Step 3: Protein Translation** - The program converts these DNA strings into protein chains so we can see the real-world impact of any changes.
+* **Step 3: Applying the Annotation**: The tool picks the gene's canonical transcript (preferring the official MANE Select transcript, or the longest coding transcript if none is tagged) and uses the DNA alignment to map its coding regions (exons - CDSs) onto the patient's sequence.
 
-* **Step 4: Alignment & Comparison** - The core compares the healthy protein and the patient's protein side-by-side, letter by letter.
+* **Step 4: Protein Translation**: Both the reference and patient coding sequences are translated into protein chains. Translation stops at the first stop codon, the same way it naturally would inside a cell - so a mutation that shifts or removes the stop codon is captured accurately, instead of translating past it into meaningless letters.
 
-* **Step 5: Result Report** - The app highlights all mutations (swapped letters or shifted frames) in the main window grid and lets you export them into a standard clinical `.vcf` file.
+* **Step 5: Protein Comparison**: The two protein chains are aligned side by side and compared position by position to find every difference.
+
+* **Step 6: Result Report**: All detected changes are listed in the main window. Results can be exported to a standard .vcf file.
+
+---
+
+## Reading the Results
+Each row represents one detected difference between the patient and the reference protein. Mutation types include simple substitutions, insertions, deletions, and stop-codon changes (a mutation that creates or removes the protein's stop signal).
+
+**If a row is highlighted:** The mutation matches a known entry in ClinVar, a public clinical variant database. Clicking it opens a detail window showing the disease association and a color-coded significance badge (red/orange for pathogenic, yellow for uncertain, green for benign).
+
+**If a row is dim:** No matching entry was found in the public database. This does not mean the mutation is harmless - it simply means there's no public record to compare it against yet. It could also mean the app didn't find a match due to an issue on its side.
 
 ---
 
-## Output format
-**If row is highlighted:** This is a real mutation, which are contained by ClinVar.
-
-**If row is dim:** Unknown mutation was found. No data about it in public databases.
+## Exporting Results
+Results can be saved as a `.vcf` file with a header and standard columns, so they can be opened in other genomics tools.
 
 ---
+
+## Current Limitations (v1.0)
+* **One gene per file.** Whole-chromosome input isn't supported.
+* **One transcript per gene.** If a gene has multiple isoforms, only the canonical one is analyzed.
+* **Frameshift mutations** are not labeled as their own category yet - they typically show up as a cluster of substitutions after the shift point, or as a moved stop codon. Treat long runs of unexpected substitutions as a possible sign of a frameshift.
+* **Large structural rearrangements** (e.g. inversions) are not supported - the alignment step assumes the patient and reference sequences are otherwise in the same order.
