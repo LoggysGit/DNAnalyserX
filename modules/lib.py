@@ -18,20 +18,19 @@ CONFIG_DIR = "config.cfg"
 
 APP_INFO_DIR = DATA_DIR / "app_info.md"
 GENES_CACHE_DIR = DATA_DIR / "genes"
-DB_PATH = DATA_DIR / "database.db"
+DB_PATH = DATA_DIR / "disease_database.db"
 
 # --- Constants --- #
 config = configparser.ConfigParser()
 config.read(CONFIG_DIR)
 
 GENOME_VER = config.get('GENERAL', 'GENOME_VER', fallback='GRCh38')
-CHROMOSOME_BASE_URL = config.get('GENERAL', 'CHROMOSOME_BASE_URL')
 DISEASE_BASE_URL = config.get('GENERAL', 'DISEASE_BASE_URL')
 
-MAX_NUCL_LENGTH = config.getint('GENERAL', 'MAX_NUCLEOTIDE_LENGTH', fallback=100000)
+MAX_NUCL_LENGTH = config.getint('APP', 'MAX_NUCLEOTIDE_LENGTH', fallback=100000)
+USER_EMAIL = config.get('APP', 'EMAIL')
 
 # --- Functions --- #
-
 def log(data):
     timestamp = dt.now().strftime("%d.%m.%Y-%H:%M:%S:%f")[:-3]
     with open(LOGS_FILE_DIR, 'a', encoding="utf-8") as f: f.write(f"{timestamp} | {data}\n")

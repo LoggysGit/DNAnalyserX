@@ -11,13 +11,21 @@ GeneAnalyzerX is a simple tool that helps you find mutations in a patient's DNA.
 ---
 
 ## How It Works
-
 * **Step 1: Automatic Download** - You type in the gene name, and the app automatically fetches the correct healthy map and reference sequence from official NCBI database servers.
 
 * **Step 2: Exon Extraction** - The engine cuts out only the important coding parts (exons) of the gene from both the healthy template and your patient's file.
 
 * **Step 3: Protein Translation** - The program converts these DNA strings into protein chains so we can see the real-world impact of any changes.
 
-* **Step 4: Comparison & Alignment** - The core compares the healthy protein and the patient's protein side-by-side, letter by letter.
+* **Step 4: Alignment & Comparison** - The core compares the healthy protein and the patient's protein side-by-side, letter by letter.
 
 * **Step 5: Result Report** - The app highlights all mutations (swapped letters or shifted frames) in the main window grid and lets you export them into a standard clinical `.vcf` file.
+
+---
+
+## Output format
+**If row is highlighted:** This is a real mutation, which are contained by ClinVar.
+
+**If row is dim:** Unknown mutation was found. No data about it in public databases.
+
+---

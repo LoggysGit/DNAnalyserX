@@ -30,13 +30,12 @@ def system_thread():
                 results = core.run_comparing(data_file_path, gene_id)
 
                 # Seek for diseases
-                full_mutations_data = core.find_mutations(results)
+                full_mutations_data = core.find_mutations(results, gene_id)
                 full_mutations_data.sort(key=lambda r: r[0])
 
                 # Send into interface
                 for i in range(len(full_mutations_data)):
                     d = full_mutations_data[i]
-                    d.insert(0, (i + 1))
                     gui_command_buffer.put(("MUTATION", d))
 
                 gui_command_buffer.put(("DONE", None))

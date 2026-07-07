@@ -1,12 +1,12 @@
 import os
+import re
 import time
 
+import requests
 from pathlib import Path
 from datetime import datetime, timedelta
 
 import gzip
-import requests
-
 import shutil
 import sqlite3
 
@@ -16,91 +16,91 @@ class Database:
     def __init__(self, db_path, gui_cmds):
         self.db_path = db_path
         self.gui_cmd_buffer = gui_cmds
+
         self.init_db()
 
     def init_db(self):
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        with sqlite3.connect(self.db_path) as db:
+            cursor = db.cursor()
 
-            # Main DB
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS clinvar_mutations (
-                    allele_id INTEGER PRIMARY KEY,
-                    mutation_type TEXT,
+                CREATE TABLE IF NOT EXISTS Mutations (
+                    hgvs TEXT,
                     chromosome TEXT,
+                    gene TEXT,
                     position INTEGER,
                     ref_allele TEXT,
                     alt_allele TEXT,
+                    clnvs TEXT,
                     clinical_significance TEXT,
-                    disease_name TEXT
+                    disease_name TEXT,
+                    UNIQUE(gene, hgvs)
                 );
             """)
             
-            # Composite search index
             cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_variant_search 
-                ON clinvar_mutations (chromosome, position, ref_allele, alt_allele);
+                CREATE INDEX IF NOT EXISTS idx_gene_hgvs_lookup 
+                ON Mutations (gene, hgvs);
             """)
 
-            # Metadata DB
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS db_metadata (
+                CREATE TABLE IF NOT EXISTS Metadata (
                     key TEXT PRIMARY KEY,
                     value TEXT
                 );
             """)
             
-            conn.commit()
+            db.commit()
 
             lib.log("Disease database initialized.")
 
     def insert_mutation_batch(self, batch_data):
         query = """
-            INSERT OR REPLACE INTO clinvar_mutations (
-                allele_id, mutation_type, chromosome, position, 
-                ref_allele, alt_allele, clinical_significance, disease_name
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+            INSERT OR REPLACE INTO Mutations (
+                hgvs, chromosome, gene, position, ref_allele, 
+                alt_allele, clnvs, clinical_significance, disease_name
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
         """
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        with sqlite3.connect(self.db_path) as db:
+            cursor = db.cursor()
             cursor.executemany(query, batch_data)
-            conn.commit()
+            db.commit()
 
-    def find_mutation(self, chromosome, position, ref, alt):
+    def find_mutation(self, hgvs_id, gene):
         query = """
-            SELECT clinical_significance, disease_name 
-            FROM clinvar_mutations 
-            WHERE chromosome = ? AND position = ? AND ref_allele = ? AND alt_allele = ?
+            SELECT chromosome, position, ref_allele, alt_allele, clnvs, clinical_significance, disease_name 
+            FROM Mutations WHERE gene = ? AND hgvs = ?
         """
-        chrom_clean = str(chromosome).lower().replace("chr", "").strip()
+        with sqlite3.connect(self.db_path) as db:
+            cursor = db.cursor()
+            cursor.execute(query, (str(gene).strip(), str(hgvs_id).strip()))
+
+            result = cursor.fetchone()
+            return result if result else [None, None, None, None, None, "Unknown", "Unknown"]
         
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute(query, (chrom_clean, position, ref, alt))
-            return cursor.fetchone()
-        
+    # = Metadata control = #
     def get_last_update_date(self):
-        query = "SELECT value FROM db_metadata WHERE key = 'last_update'"
-
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        query = "SELECT value FROM Metadata WHERE key = 'last_update'"
+        with sqlite3.connect(self.db_path) as db:
+            cursor = db.cursor()
             cursor.execute(query)
-            row = cursor.fetchone()
 
+            row = cursor.fetchone()
             return row[0] if row else None
 
     def sys_set_last_update_now(self):
-        now_str = datetime.now().date().isoformat() #'YYYY-MM-DD'
-        query = "INSERT OR REPLACE INTO db_metadata (key, value) VALUES ('last_update', ?)"
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        now_str = datetime.now().date().isoformat()
+        query = "INSERT OR REPLACE INTO Metadata (key, value) VALUES ('last_update', ?)"
+        with sqlite3.connect(self.db_path) as db:
+            cursor = db.cursor()
             cursor.execute(query, (now_str,))
-            conn.commit()
+            db.commit()
 
 class DataManager:
     def __init__(self, db_path, gui_cmds):
         self.db_path = db_path
         self.gui_cmd_buffer = gui_cmds
+
         self.disease_database = Database(db_path, gui_cmds)
 
     def purge_temp(self):
@@ -113,95 +113,6 @@ class DataManager:
                 lib.log("Temporary data buffer purged successfully.")
 
             except Exception as e: lib.log(f"Cleanup error: {e}")
-
-    def update_disease_database(self):
-        os.makedirs(lib.TEMP_DIR, exist_ok=True)
-        target_path = os.path.join(lib.TEMP_DIR, "variant_summary.txt.gz")
-
-        self.gui_cmd_buffer.put(["DB_UPDATE", None])
-        
-        lib.log("Starting ClinVar database download...")
-        # Download
-        try:
-            response = requests.get(lib.DISEASE_BASE_URL, stream=True, timeout=60)
-            response.raise_for_status()
-            with open(target_path, "wb") as f_bin:
-                for chunk in response.iter_content(chunk_size=1024 * 64):
-                    if chunk: f_bin.write(chunk)
-            lib.log("ClinVar database downloaded successfully.")
-        except Exception as e:
-            lib.log(f"Failed to download ClinVar database: {e}")
-            return
-
-        lib.log("Parsing into SQLite DB...")
-        batch = []
-        batch_size = 50000
-        records_processed = 0
-
-        # Parse
-        try:
-            with gzip.open(target_path, "rt", encoding="utf-8") as f_text:
-                # Skip column descriptions row
-                _ = f_text.readline()  
-                
-                for line in f_text:
-                    tokens = line.split("\t")
-                    if len(tokens) < 34: continue
-                    
-                    # FIlter old gene formats
-                    assembly = tokens[16].strip()
-                    if assembly != lib.GENOME_VER: continue
-                        
-                    allele_id = int(tokens[0])
-                    mut_type = tokens[1].strip()
-                    chromosome = tokens[18].strip().lower().replace("chr", "")
-                    
-                    # Skip unmapped
-                    try: position = int(tokens[31])
-                    except ValueError: continue
-                        
-                    ref_allele = tokens[32].strip().upper()
-                    alt_allele = tokens[33].strip().upper()
-                    clinical_sig = tokens[6].strip()
-                    disease_name = tokens[13].strip()
-
-                    batch.append((
-                        allele_id, mut_type, chromosome, position, 
-                        ref_allele, alt_allele, clinical_sig, disease_name
-                    ))
-
-                    if len(batch) >= batch_size:
-                        self.disease_database.insert_mutation_batch(batch)
-                        records_processed += len(batch)
-                        lib.log(f"Parsed and integrated {records_processed} objects...")
-                        batch = []
-
-                # Insert into DB
-                if batch:
-                    self.disease_database.insert_mutation_batch(batch)
-                    records_processed += len(batch)
-
-            lib.log(f"Database generation completed. Integrated {records_processed} variants.")
-        except Exception as e: lib.log(f"Processing error: {e}")
-        # Clear source file
-        finally: self.purge_temp()
-
-        self.gui_cmd_buffer.put(["DONE", None])
-
-    def handle_disease_db_update(self):
-        last_update_str = self.disease_database.get_last_update_date()
-
-        # Check time treshhold
-        if last_update_str:
-            last_update = datetime.fromisoformat(last_update_str).date()
-            if datetime.now().date() - last_update < timedelta(days=7): return
-
-        # Update DB
-        lib.log("Weekly DB update threshold reached. Initializing update...")
-        self.update_disease_database()
-
-        # Save update timestamp
-        self.disease_database.sys_set_last_update_now()
 
     def save_mutations_to_vcf(self, export_path, mutations_list, reference_name=""):
         path = Path(export_path)
@@ -241,3 +152,119 @@ class DataManager:
         except Exception as e:
             lib.log(f"VCF export critical failure: {e}")
             return False
+        
+    def update_disease_database(self):
+        os.makedirs(lib.TEMP_DIR, exist_ok=True)
+        target_path = os.path.join(lib.TEMP_DIR, "disease_variant_summary.txt.gz")
+
+        self.gui_cmd_buffer.put(["DB_UPDATE", None])
+        
+        # Download file
+        lib.log("Starting ClinVar database download...")
+        try:
+            response = requests.get(lib.DISEASE_BASE_URL, stream=True, timeout=60)
+            response.raise_for_status()
+            with open(target_path, "wb") as f_bin:
+                for chunk in response.iter_content(chunk_size=1024 * 64):
+                    if chunk: f_bin.write(chunk)
+            lib.log("ClinVar database downloaded successfully.")
+            
+        except Exception as e:
+            lib.log(f"Failed to download ClinVar database: {e}")
+            return
+
+        # Parsing downloaded
+        lib.log("Parsing into SQLite DB...")
+        batch = []
+        batch_size = 50000
+        records_processed = 0
+
+        aa_map = {
+            "Ala": "A", "Arg": "R", "Asn": "N", "Asp": "D", "Cys": "C",
+            "Gln": "Q", "Glu": "E", "Gly": "G", "His": "H", "Ile": "I",
+            "Leu": "L", "Lys": "K", "Met": "M", "Phe": "F", "Pro": "P",
+            "Ser": "S", "Thr": "T", "Trp": "W", "Tyr": "Y", "Val": "V",
+            "Ter": "*", "Xaa": "X"
+        }
+
+        hgvs_regex = re.compile(r"\(p\.([A-Za-z]{3})(\d+)([A-Za-z]{3}|\*|fs)?\)")
+
+        try:
+            with gzip.open(target_path, "rt", encoding="utf-8") as f_text:
+                _ = f_text.readline()  
+                
+                for line in f_text:
+                    tokens = line.split("\t")
+                    if len(tokens) < 34: continue
+                    
+                    # Only actual genome version
+                    if tokens[16].strip() != lib.GENOME_VER: continue
+                    
+                    # Check gene data
+                    gene_symbol = tokens[4].strip()
+                    if not gene_symbol or gene_symbol == "-": continue
+
+                    variant_name = tokens[2].strip()
+                    hgvs_match = hgvs_regex.search(variant_name)
+                    if not hgvs_match: continue
+
+                    ref_aa_3, pos_num, alt_aa_3 = hgvs_match.groups()
+                    
+                    ref_aa_1 = aa_map.get(ref_aa_3)
+                    if not ref_aa_1: continue
+                        
+                    if alt_aa_3 == "fs": alt_aa_1 = "fs"
+                    elif alt_aa_3: alt_aa_1 = aa_map.get(alt_aa_3, alt_aa_3)
+                    else: alt_aa_1 = ""
+
+                    hgvs_key = f"p.{ref_aa_1}{pos_num}{alt_aa_1}"
+                    
+                    chromosome = tokens[18].strip().lower().replace("chr", "")
+                    
+                    try: position = int(tokens[19])
+                    except ValueError: continue
+                        
+                    ref_allele = tokens[32].strip().upper()
+                    alt_allele = tokens[33].strip().upper()
+
+                    clinical_sig = tokens[6].strip()
+                    clnvs_id = tokens[30].strip()
+                    disease_name = tokens[13].strip()
+
+                    batch.append((
+                        hgvs_key, chromosome, gene_symbol, position, 
+                        ref_allele, alt_allele, clnvs_id, clinical_sig, disease_name
+                    ))
+
+                    if len(batch) >= batch_size:
+                        self.disease_database.insert_mutation_batch(batch)
+                        records_processed += len(batch)
+                        lib.log(f"Parsed {records_processed} variants...")
+                        batch = []
+
+                if batch:
+                    self.disease_database.insert_mutation_batch(batch)
+                    records_processed += len(batch)
+
+            lib.log(f"Database generation completed. Integrated {records_processed} variants.")
+            self.disease_database.sys_set_last_update_now()
+
+        except Exception as e: lib.log(f"An error occured while parsing DB: {e}")
+        finally: self.purge_temp()
+
+        self.gui_cmd_buffer.put(["DONE", None])
+
+    def handle_disease_db_update(self):
+        last_update_str = self.disease_database.get_last_update_date()
+
+        # Check time treshhold
+        if last_update_str:
+            last_update = datetime.fromisoformat(last_update_str).date()
+            if datetime.now().date() - last_update < timedelta(days=7): return
+
+        # Update DB
+        lib.log("Weekly DB update threshold reached. Initializing update...")
+        self.update_disease_database()
+
+        # Save update timestamp
+        self.disease_database.sys_set_last_update_now()

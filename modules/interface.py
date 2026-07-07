@@ -1,10 +1,12 @@
 import os
 import re
 
+import time
 import queue
 
-import customtkinter as ctk
+import tkinter as tk
 from tkinter import ttk, filedialog
+import customtkinter as ctk
 
 import modules.lib as lib
 
@@ -22,21 +24,22 @@ class MutationDetailWindow(ctk.CTkToplevel):
         self.transient(parent)
         self.grab_set()
         
-        if len(mutation) < 8: return
+        if len(mutation) < 10: return
         self.set_info(mutation)
 
         self.init_ui()
 
     def set_info(self, mut):
-        self.id = mut[0]
-        self.chrn = mut[1]
-        self.pos_start = mut[2]
-        self.pos_end = mut[3]
-        self.ref = mut[4]
-        self.alt = mut[5]
-        self.vs = mut[6]
-        self.sign = mut[7]
-        self.dname = mut[8]
+        self.id =           mut[0]
+        self.chrn =         mut[1]
+        self.gene =         mut[2]
+        self.pos_start =    mut[3]
+        self.pos_end =      mut[4]
+        self.ref =          mut[5]
+        self.alt =          mut[6]
+        self.vs =           mut[7]
+        self.sign =         mut[8]
+        self.dname =        mut[9]
 
     def init_ui(self):
         main_container = ctk.CTkFrame(self, fg_color="transparent")
@@ -268,13 +271,13 @@ class InfoWindow(ctk.CTkToplevel):
             else: self.textbox.insert("end", part, "NORMAL")
 
 class ProgressWindow(ctk.CTkToplevel):
-    def __init__(self, parent, ui_colors, task_count):
+    def __init__(self, parent, ui_colors, task_count, title=""):
         super().__init__(parent)
 
         self.ui_colors = ui_colors
         self.task_count = task_count
                 
-        self.title("Analysis Progress")
+        self.title(title)
         self.geometry("380x140")
         self.resizable(False, False)
 
@@ -297,7 +300,7 @@ class ProgressWindow(ctk.CTkToplevel):
 
         self.lbl_status = ctk.CTkLabel(
             main_frame,
-            text="Initializing computational core...",
+            text="Initializing...",
             font=("Arial", 12, "bold"),
             text_color=self.ui_colors.get("text_main", "#ffffff"),
             anchor="w"
@@ -316,7 +319,7 @@ class ProgressWindow(ctk.CTkToplevel):
 
         self.lbl_msg = ctk.CTkLabel(
             main_frame,
-            text="Waiting for execution steps...",
+            text="",
             font=("Arial", 11),
             text_color=self.ui_colors.get("text_muted", "#8a8a8a"),
             anchor="w"
@@ -327,7 +330,7 @@ class ProgressWindow(ctk.CTkToplevel):
         progress_value = min(max(tnum / self.task_count, 0.0), 1.0)
         self.progress_bar.set(progress_value)
 
-        self.lbl_status.configure(text=f"Processing Analysis ({tnum}/{self.task_count})")
+        self.lbl_status.configure(text=f"Processing ({tnum}/{self.task_count})")
         self.lbl_msg.configure(text=str(msg))
         
         self.update_idletasks()
@@ -351,6 +354,7 @@ class App(ctk.CTk):
         self.current_data_file_path = None
 
         self.analysis_progress_window = None
+        self.db_update_progress_window = None
 
         self.init_colors()
         self.configure(fg_color=self.ui_colors["bg_main"])
@@ -394,7 +398,7 @@ class App(ctk.CTk):
                         bd=0)
 
     def init_ui(self):
-        self.grid_columnconfigure(0, weight=0, minsize=260)
+        self.grid_columnconfigure(0, weight=0, minsize=230)
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
@@ -474,10 +478,14 @@ class App(ctk.CTk):
         )
         lbl_gene_section.pack(anchor="w", padx=15, pady=(10, 2))
 
+        self.gene_var = tk.StringVar()
+        self.gene_var.trace_add("write", self.gene_input_validate)
+
         self.entry_gene_id = ctk.CTkEntry(
             left_panel,
             placeholder_text="Name",
             font=("Arial", 12),
+            textvariable=self.gene_var,
             fg_color=self.ui_colors["bg_main"],
             border_color=self.ui_colors["border"],
             text_color=self.ui_colors["text_main"],
@@ -547,7 +555,7 @@ class App(ctk.CTk):
             font=("Arial", 10, "bold")
         )
 
-        columns = ("id", "chr", "position", "ref", "alt", "clnvs", "clnsign", "name")
+        columns = ("id", "chr", "gene", "position", "ref", "alt", "clnvs", "clnsign", "name")
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings")
         
         self.tree.tag_configure(
@@ -562,6 +570,7 @@ class App(ctk.CTk):
 
         self.tree.heading("id", text="№")
         self.tree.heading("chr", text="CHR")
+        self.tree.heading("gene", text="Gene")
         self.tree.heading("position", text="Position")
         self.tree.heading("ref", text="Ref")
         self.tree.heading("alt", text="Alt")
@@ -569,14 +578,15 @@ class App(ctk.CTk):
         self.tree.heading("clnsign", text="Significance")
         self.tree.heading("name", text="Disease Name")
 
-        self.tree.column("id", width=30, minwidth=25, anchor="center")
-        self.tree.column("chr", width=55, minwidth=45, anchor="center")
+        self.tree.column("id", width=20, minwidth=20, anchor="center")
+        self.tree.column("chr", width=35, minwidth=35, anchor="center")
+        self.tree.column("gene", width=55, minwidth=45, anchor="center")
         self.tree.column("position", width=110, minwidth=100, anchor="w")
         self.tree.column("ref", width=75, minwidth=65, anchor="center")
         self.tree.column("alt", width=75, minwidth=65, anchor="center")
         self.tree.column("clnvs", width=105, minwidth=95, anchor="center")
         self.tree.column("clnsign", width=120, minwidth=100, anchor="center")
-        self.tree.column("name", width=250, minwidth=180, anchor="w")
+        self.tree.column("name", width=240, minwidth=180, anchor="w")
 
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
@@ -588,6 +598,14 @@ class App(ctk.CTk):
     
     # === Event functions === #
     def show_info_popup(self): InfoWindow(self, self.ui_colors, lib.APP_INFO_DIR)
+
+    def gene_input_validate(self, *args):
+        current_text = self.gene_var.get()
+
+        if any(char.islower() for char in current_text):
+            cursor_pos = self.entry_gene_id._entry.index(tk.INSERT)
+            self.gene_var.set(current_text.upper())
+            self.entry_gene_id._entry.icursor(cursor_pos)
 
     def select_data_file(self):
         file_path = filedialog.askopenfilename(filetypes=[("FASTA files", "*.fasta.gz *.fa.gz")])
@@ -616,12 +634,13 @@ class App(ctk.CTk):
             row_values[0],
             row_values[1],
             row_values[2],
-            str(int(row_values[2]) + len(row_values[3]) - 1),
             row_values[3],
+            str(int(row_values[3]) + len(row_values[5]) - 1),
             row_values[4],
             row_values[5],
             row_values[6],
             row_values[7],
+            row_values[8]
         ]
 
         MutationDetailWindow(self, self.ui_colors, mock_data)
@@ -631,9 +650,11 @@ class App(ctk.CTk):
         if self.current_data_file_path and gene_id.strip() != "":
             # Interface
             self.btn_analyse.configure(state="disabled")
-            self.analysis_progress_window = ProgressWindow(self, self.ui_colors, 7)
+            self.analysis_progress_window = ProgressWindow(self, self.ui_colors, 7, "Analysis Progress")
+
             # Send a command
-            self.system_command_buffer.put(("RUN", [self.current_data_file_path, gene_id]))
+            self.after(50, lambda: self.system_command_buffer.put(("RUN", [self.current_data_file_path, gene_id])))
+            
         else: lib.dbg("Cannot start the analysis.")
 
         self.clear_all_inputs()
@@ -679,16 +700,17 @@ class App(ctk.CTk):
                 match command:
                     case "MUTATION":
                         try:
-                            i, pos, clnvs, ref, alt, sign, name = payload
-                            tag = "missing" if name == "Not found" else "in_database"
+                            i, chr, gene, pos, clnvs, ref, alt, sign, name = payload
                             self.tree.insert("", "end", 
-                                values=(i, f"chr{self.entry_chr.get()}", pos, ref, alt, clnvs, sign, name), 
-                                tags=(tag)
+                                values=(i, chr, gene, pos, ref, alt, clnvs, sign, name), 
+                                tags=("missing" if name in ["Not found", "Unknown", "None"] else "in_database")
                             )
-                        except Exception as e: lib.log(f"Error parsing mutation: {e}.")
+                        except Exception as e: lib.log(f"Error parsing mutation {payload}: {e}.")
 
                     case "DB_UPDATE":
                         self.btn_analyse.configure(state="disabled")
+                        self.db_update_progress_window = ProgressWindow(self, self.ui_colors, 1, "DB Update Progress")
+                        self.db_update_progress_window.update_progress(0, "Updating disease data...")
 
                     case "PROGRESS":
                         task_num, msg = payload
@@ -696,11 +718,18 @@ class App(ctk.CTk):
 
                     case "DONE":
                         self.btn_analyse.configure(state="normal")
-                        # Close progressbar
-                        if self.analysis_progress_window:
+
+                        # Close analysis progressbar
+                        if self.analysis_progress_window and self.analysis_progress_window.winfo_exists():
                             self.analysis_progress_window.grab_release()
                             self.analysis_progress_window.destroy()
                             self.analysis_progress_window = None
+                        # Close DB update process progressbar
+                        if self.db_update_progress_window and self.db_update_progress_window.winfo_exists():
+                            self.db_update_progress_window.update_progress(1, "DB update completed.")
+                            self.db_update_progress_window.grab_release()
+                            self.db_update_progress_window.destroy()
+                            self.db_update_progress_window = None
 
                     case _: pass
                         
