@@ -25,7 +25,6 @@ config.read(CONFIG_DIR)
 GENOME_VER = config.get('GENERAL', 'GENOME_VER', fallback='GRCh38')
 DISEASE_BASE_URL = config.get('GENERAL', 'DISEASE_BASE_URL')
 
-MAX_NUCL_LENGTH = config.getint('APP', 'MAX_NUCLEOTIDE_LENGTH', fallback=100000)
 USER_EMAIL = config.get('APP', 'EMAIL')
 
 IS_DEBUG = config.get('DEBUG', 'DEBUG')

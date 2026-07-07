@@ -3,7 +3,7 @@ import threading
 
 import modules.lib as lib
 import modules.data_manager as dataManager
-import modules.engine  as engine
+import modules.engine as engine
 import modules.interface as gui
 
 gui_command_buffer = queue.Queue()
