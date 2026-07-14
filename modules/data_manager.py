@@ -34,13 +34,13 @@ class Database:
                     clnvs TEXT,
                     clinical_significance TEXT,
                     disease_name TEXT,
-                    UNIQUE(gene, hgvs)
+                    UNIQUE(gene, hgvs, alt_allele)
                 );
             """)
             
             cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_gene_hgvs_lookup 
-                ON Mutations (gene, hgvs);
+                CREATE INDEX IF NOT EXISTS idx_lookup 
+                ON Mutations (gene, hgvs, alt_allele);
             """)
 
             cursor.execute("""
@@ -66,17 +66,17 @@ class Database:
             cursor.executemany(query, batch_data)
             db.commit()
 
-    def find_mutation(self, hgvs_id, gene):
+    def find_mutation(self, hgvs_id, gene, alt):
         query = """
             SELECT chromosome, position, ref_allele, alt_allele, clnvs, clinical_significance, disease_name 
-            FROM Mutations WHERE gene = ? AND hgvs = ?
+            FROM Mutations WHERE gene = ? AND hgvs = ? AND alt_allele = ?
         """
         with sqlite3.connect(self.db_path) as db:
             cursor = db.cursor()
-            cursor.execute(query, (str(gene).strip(), str(hgvs_id).strip()))
+            cursor.execute(query, (str(gene).strip(), str(hgvs_id).strip(), str(alt).strip()))
 
             result = cursor.fetchone()
-            return result if result else [None, None, None, None, None, "Unknown", "Unknown"]
+            return result if result else [None, None, None, alt, None, "Unknown", "Unknown"]
         
     # = Metadata control = #
     def get_last_update_date(self):

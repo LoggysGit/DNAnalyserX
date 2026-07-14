@@ -16,6 +16,56 @@ class Core:
         self.data_manager = dman
         self.gui_command_buffer = gui_cmd_buff
 
+    def resolve_gene_chromosome_strand(self, gene_id):
+        cache_path = os.path.join(lib.GENES_CACHE_DIR, f"{gene_id}_chrom_strand.txt")
+
+        if os.path.exists(cache_path):
+            with open(cache_path, "r") as f_in:
+                cached_value = f_in.read().strip()
+            if cached_value in ("1", "-1"):
+                lib.dbg(f"Using cached chromosome strand for {gene_id}: {cached_value}.")
+                return int(cached_value)
+
+        try:
+            search_handle = Entrez.esearch(db="gene", term=f"{gene_id}[sym] AND Homo sapiens[Organism]")
+            search_results = Entrez.read(search_handle)
+            search_handle.close()
+
+            if not search_results["IdList"]:
+                lib.log(f"WARNING: could not resolve chromosome strand for {gene_id}.")
+                return 1
+
+            ncbi_gene_id = search_results["IdList"][0]
+
+            summary_handle = Entrez.esummary(db="gene", id=ncbi_gene_id)
+            summary_results = Entrez.read(summary_handle)
+            summary_handle.close()
+
+            doc = summary_results["DocumentSummarySet"]["DocumentSummary"][0]
+            genomic_info_list = doc.get("GenomicInfo", [])
+
+            if not genomic_info_list:
+                lib.log(f"WARNING: no GenomicInfo for {gene_id} — defaulting to plus strand.")
+                return 1
+
+            info = genomic_info_list[0]
+            raw_start = int(info["ChrStart"])
+            raw_stop = int(info["ChrStop"])
+
+            strand = -1 if raw_start > raw_stop else 1
+
+            with open(cache_path, "w") as f_out:
+                f_out.write(str(strand))
+
+            lib.dbg(f"Resolved chromosome strand for {gene_id}: {strand} "
+                     f"(ChrStart={raw_start}, ChrStop={raw_stop})")
+
+            return strand
+
+        except Exception as e:
+            lib.log(f"WARNING: failed to resolve chromosome strand for {gene_id}: {e}")
+            return 1
+
     def run_comparing(self, patient_data_path, gene_id):
         self.gui_command_buffer.put(("PROGRESS", [0, "Opening patient file..."]))
 
@@ -25,11 +75,13 @@ class Core:
         in_seq_handle.close()
 
         if len(patient_seq_dict) != 1:
-            lib.log(f"Expected exactly one sequence in patient file, got {len(patient_seq_dict)}")
+            lib.log(f"Expected one sequence in patient file, got {len(patient_seq_dict)}")
             return []
 
         # 2. Check & Download reference
         Entrez.email = lib.USER_EMAIL
+
+        gene_chromosome_strand = self.resolve_gene_chromosome_strand(gene_id)
 
         search_handle = Entrez.esearch(
             db="nucleotide",
@@ -134,8 +186,7 @@ class Core:
         # 5. Apply annotation
         self.gui_command_buffer.put(("PROGRESS", [4, "Applying annotation..."]))
 
-        with open(ref_anno_path, "r") as in_handle:
-            gff_records = list(GFF.parse(in_handle))
+        with open(ref_anno_path, "r") as in_handle: gff_records = list(GFF.parse(in_handle))
 
         def collect_transcripts(gff_records, gene_id):
             candidates = []
@@ -216,6 +267,63 @@ class Core:
         patient_dna_seq = Seq("".join(patient_cds_parts))
         ref_dna_seq = Seq("".join(ref_cds_parts))
 
+        def build_nucleotide_origin_map(locs):
+            origin = []
+            for loc in locs:
+                indices = list(range(int(loc.start), int(loc.end)))
+                if loc.strand == -1: indices.reverse()
+                origin.extend(indices)
+
+            return origin
+
+        ref_dna_origin = build_nucleotide_origin_map(ref_cds_locs)
+        patient_dna_origin = build_nucleotide_origin_map(patient_cds_locs)
+
+        lib.dbg(f"ref_dna_origin length={len(ref_dna_origin)}, ref_dna_seq length={len(ref_dna_seq)}")
+        lib.dbg(f"patient_dna_origin length={len(patient_dna_origin)}, patient_dna_seq length={len(patient_dna_seq)}")
+
+        gene_strand = gene_chromosome_strand
+        lib.dbg(f"Using TRUE chromosome strand for nucleotide reorientation: {gene_strand}")
+
+        def get_codon_info(cds_seq, cds_origin, amino_pos_0based):
+            nt_start = amino_pos_0based * 3
+            nt_end = nt_start + 3
+
+            if amino_pos_0based < 0 or nt_end > len(cds_seq) or nt_end > len(cds_origin): return None, None
+
+            codon = str(cds_seq[nt_start:nt_end])
+            origin_slice = cds_origin[nt_start:nt_end]
+
+            return codon, origin_slice
+
+        def trim_common_flanks(ref_str, alt_str, ref_origin_slice, alt_origin_slice):
+            if ref_str is None or alt_str is None:
+                return ref_str, alt_str, ref_origin_slice, alt_origin_slice
+
+            start = 0
+            while start < len(ref_str) and start < len(alt_str) and ref_str[start] == alt_str[start]: start += 1
+
+            end_ref = len(ref_str)
+            end_alt = len(alt_str)
+            while end_ref > start and end_alt > start and ref_str[end_ref - 1] == alt_str[end_alt - 1]:
+                end_ref -= 1
+                end_alt -= 1
+
+            trimmed_ref = ref_str[start:end_ref]
+            trimmed_alt = alt_str[start:end_alt]
+            trimmed_ref_origin = ref_origin_slice[start:end_ref] if ref_origin_slice else ref_origin_slice
+            trimmed_alt_origin = alt_origin_slice[start:end_alt] if alt_origin_slice else alt_origin_slice
+
+            return trimmed_ref, trimmed_alt, trimmed_ref_origin, trimmed_alt_origin
+
+        def to_genomic_representation(nt_str, origin_slice):
+            if nt_str is None or not origin_slice: return nt_str, None
+
+            genomic_pos = min(origin_slice)
+            genomic_str = str(Seq(nt_str).reverse_complement()) if gene_strand == -1 else nt_str
+
+            return genomic_str, genomic_pos
+
         # 6. Turn sequence into aminoacids
         self.gui_command_buffer.put(("PROGRESS", [5, "Translating into aminoacids..."]))
 
@@ -254,23 +362,45 @@ class Core:
         if patient_stop_pos is not None and ref_stop_pos is not None:
             if patient_stop_pos < ref_stop_pos:
                 wt_aa = ref_amino_full[patient_stop_pos] if patient_stop_pos < len(ref_amino_full) else "?"
+                ref_codon, ref_origin = get_codon_info(ref_dna_seq, ref_dna_origin, patient_stop_pos)
+                pat_codon, pat_origin = get_codon_info(patient_dna_seq, patient_dna_origin, patient_stop_pos)
+                ref_codon, pat_codon, ref_origin, pat_origin = trim_common_flanks(
+                    ref_codon, pat_codon, ref_origin, pat_origin
+                )
+                ref_codon, ref_local_pos = to_genomic_representation(ref_codon, ref_origin)
+                pat_codon, pat_local_pos = to_genomic_representation(pat_codon, pat_origin)
                 mutations.append({
                     "pos": patient_stop_pos + 1,
                     "type": "Nonsense",
                     "hgvs": f"p.{wt_aa}{patient_stop_pos + 1}*",
                     "ref": wt_aa,
                     "alt": "*",
+                    "nt_ref": ref_codon,
+                    "nt_alt": pat_codon,
+                    "ref_local_pos": ref_local_pos,
+                    "patient_local_pos": pat_local_pos,
                 })
             elif patient_stop_pos > ref_stop_pos:
                 new_aa = patient_amino_full[ref_stop_pos] if ref_stop_pos < len(patient_amino_full) else "?"
+                ref_codon, ref_origin = get_codon_info(ref_dna_seq, ref_dna_origin, ref_stop_pos)
+                pat_codon, pat_origin = get_codon_info(patient_dna_seq, patient_dna_origin, ref_stop_pos)
+                ref_codon, pat_codon, ref_origin, pat_origin = trim_common_flanks(
+                    ref_codon, pat_codon, ref_origin, pat_origin
+                )
+                ref_codon, ref_local_pos = to_genomic_representation(ref_codon, ref_origin)
+                pat_codon, pat_local_pos = to_genomic_representation(pat_codon, pat_origin)
                 mutations.append({
                     "pos": ref_stop_pos + 1,
                     "type": "Stop-loss",
                     "hgvs": f"p.*{ref_stop_pos + 1}{new_aa}ext*?",
                     "ref": "*",
                     "alt": new_aa,
+                    "nt_ref": ref_codon,
+                    "nt_alt": pat_codon,
+                    "ref_local_pos": ref_local_pos,
+                    "patient_local_pos": pat_local_pos,
                 })
-        elif patient_stop_pos is None: lib.log("No stop codon found in patient CDS translation — possible read-through/large deletion")
+        elif patient_stop_pos is None: lib.log("No stop codon found in patient CDS translation.")
 
         # Insertion / Deletion / Substuition
         for ref_range, pat_range in zip(protein_alignment.aligned[0], protein_alignment.aligned[1]):
@@ -287,12 +417,23 @@ class Core:
                 for index in range(len(ref_slice)):
                     if ref_slice[index] != pat_slice[index]:
                         pos = ref_start + index + 1
+                        ref_codon, ref_origin = get_codon_info(ref_dna_seq, ref_dna_origin, ref_start + index)
+                        pat_codon, pat_origin = get_codon_info(patient_dna_seq, patient_dna_origin, pat_start + index)
+                        ref_codon, pat_codon, ref_origin, pat_origin = trim_common_flanks(
+                            ref_codon, pat_codon, ref_origin, pat_origin
+                        )
+                        ref_codon, ref_local_pos = to_genomic_representation(ref_codon, ref_origin)
+                        pat_codon, pat_local_pos = to_genomic_representation(pat_codon, pat_origin)
                         mutations.append({
                             "pos": int(pos),
                             "type": "Substitution",
                             "hgvs": f"p.{ref_slice[index]}{pos}{pat_slice[index]}",
                             "ref": str(ref_slice[index]),
                             "alt": str(pat_slice[index]),
+                            "nt_ref": ref_codon,
+                            "nt_alt": pat_codon,
+                            "ref_local_pos": ref_local_pos,
+                            "patient_local_pos": pat_local_pos,
                         })
 
             # Deletion
@@ -308,12 +449,26 @@ class Core:
                         f"{ref_amino[ref_end - 1]}{end_pos}del"
                     )
 
+                nt_start = ref_start * 3
+                nt_end = ref_end * 3
+                if nt_end <= len(ref_dna_seq) and nt_end <= len(ref_dna_origin):
+                    nt_ref_block = str(ref_dna_seq[nt_start:nt_end])
+                    ref_origin_block = ref_dna_origin[nt_start:nt_end]
+                else:
+                    nt_ref_block, ref_origin_block = None, None
+
+                nt_ref_block, ref_local_pos = to_genomic_representation(nt_ref_block, ref_origin_block)
+
                 mutations.append({
                     "pos": int(start_pos),
                     "type": "Deletion",
                     "hgvs": hgvs,
                     "ref": None,
                     "alt": None,
+                    "nt_ref": nt_ref_block,
+                    "nt_alt": "",
+                    "ref_local_pos": ref_local_pos,
+                    "patient_local_pos": None,
                 })
             # Insertion
             elif len(ref_slice) < len(pat_slice):
@@ -327,13 +482,30 @@ class Core:
                 elif left_aa is not None and right_aa is None: hgvs = f"p.{left_aa}{left_pos}_Terins{str(pat_slice)}"
                 else: hgvs = f"p.0_{right_aa}{right_pos}ins{str(pat_slice)}"
 
+                nt_start = pat_start * 3
+                nt_end = pat_end * 3
+                if nt_end <= len(patient_dna_seq) and nt_end <= len(patient_dna_origin):
+                    nt_alt_block = str(patient_dna_seq[nt_start:nt_end])
+                    patient_origin_block = patient_dna_origin[nt_start:nt_end]
+                else:
+                    nt_alt_block, patient_origin_block = None, None
+
+                nt_alt_block, patient_local_pos = to_genomic_representation(nt_alt_block, patient_origin_block)
+
                 mutations.append({
                     "pos": int(left_pos),
                     "type": "Insertion",
                     "hgvs": hgvs,
                     "ref": None,
                     "alt": None,
+                    "nt_ref": "",
+                    "nt_alt": nt_alt_block,
+                    "ref_local_pos": None,
+                    "patient_local_pos": patient_local_pos,
                 })
+
+        resolved_nt_count = sum(1 for m in mutations if m.get("nt_ref") is not None or m.get("nt_alt") is not None)
+        lib.dbg(f"Nucleotide-level info resolved for {resolved_nt_count}/{len(mutations)} mutation.")
 
         self.gui_command_buffer.put(("PROGRESS", [7, "Analysis completed."]))
 
@@ -347,10 +519,10 @@ class Core:
             try:
                 anomaly = anomalies[a]
                 local_pos, mutation_type, hgvs = anomaly["pos"], anomaly["type"], anomaly["hgvs"]
-                ref_fetched, alt_fetched = anomaly["ref"], anomaly["alt"]
+                ref_fetched, alt_fetched = anomaly["nt_ref"], anomaly["nt_alt"]
 
                 #chromosome, position, ref_allele, alt_allele, clnvs, clinical_significance, disease_name 
-                mutation = self.data_manager.disease_database.find_mutation(hgvs, gene)
+                mutation = self.data_manager.disease_database.find_mutation(hgvs, gene, alt_fetched)
                 if mutation:
                     chrid, p, refer, alter, vs, sign, name = mutation
 
@@ -371,14 +543,7 @@ class Core:
                 
             except sqlite3.Error as e:
                 lib.log(f"Database error: {e}")
-                full_mutations_data.append([
-                    anomaly[0] if len(anomaly) > 0 else 0,
-                    anomaly[1] if len(anomaly) > 1 else "Unknown",
-                    anomaly[2] if len(anomaly) > 2 else "-",
-                    anomaly[3] if len(anomaly) > 3 else "-",
-                    "Database Error",
-                    "Database Error"
-                ])
+                continue
                 
             except Exception as e:
                 lib.log(f"Unexpected mutations fetcher error: {e}")
