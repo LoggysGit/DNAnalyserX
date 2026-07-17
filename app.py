@@ -1,3 +1,5 @@
+""" Main app file """
+
 import queue
 import threading
 
@@ -14,6 +16,7 @@ core = engine.Core(gui_command_buffer, data_manager)
 app = gui.App(gui_command_buffer, sys_command_buffer, data_manager)
 
 def system_thread():
+    """ System thread"""
     while True:
         data_manager.handle_disease_db_update()
 
@@ -34,9 +37,8 @@ def system_thread():
                 full_mutations_data.sort(key=lambda r: r[0])
 
                 # Send into interface
-                for i in range(len(full_mutations_data)):
-                    d = full_mutations_data[i]
-                    gui_command_buffer.put(("MUTATION", d))
+                for di in full_mutations_data:
+                    gui_command_buffer.put(("MUTATION", di))
 
                 gui_command_buffer.put(("DONE", None))
                 lib.log("Analysing has ended.")
@@ -45,8 +47,7 @@ def system_thread():
                 mut_list, gene_ref, exp_dir = payload
                 data_manager.save_mutations_to_vcf(exp_dir, mut_list, gene_ref)
 
-            case _: pass
-        
+            case _: pass       
         sys_command_buffer.task_done()
 
 if __name__ == "__main__":

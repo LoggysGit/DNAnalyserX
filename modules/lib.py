@@ -1,3 +1,5 @@
+""" Auxiliary tools """
+
 import os
 
 from pathlib import Path
@@ -31,9 +33,13 @@ IS_DEBUG = config.get('DEBUG', 'DEBUG')
 
 # --- Functions --- #
 def log(data):
+    """ Logger function"""
     timestamp = dt.now().strftime("%d.%m.%Y-%H:%M:%S:%f")[:-3]
-    with open(LOGS_FILE_DIR, 'a', encoding="utf-8") as f: f.write(f"{timestamp} | {data}\n")
+    with open(LOGS_FILE_DIR, 'a', encoding="utf-8") as f:
+        f.write(f"{timestamp} | {data}\n")
     print(data)
-    
+
 def dbg(str):
-    if IS_DEBUG: print(f"> {str}")
+    """ System debug """
+    if IS_DEBUG:
+        print(f"> {str}")
