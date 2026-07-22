@@ -427,7 +427,7 @@ class Core:
                 continue
             except sqlite3.Error as e:
                 lib.log(f"Database error: {e}")
-                continue  
+                continue
             except Exception as e:
                 lib.log(f"Unexpected mutations fetcher error: {e}")
                 continue

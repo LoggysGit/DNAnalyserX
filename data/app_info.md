@@ -4,18 +4,18 @@ App uses Biopython and CustomTkinter libraries.
 
 **YOU MUST SET A REAL EMAIL ADDRESS IN CONFIG.CFG BEFORE USE**
 
-NCBI requires a valid email to identify requests to their servers. A placeholder or fake address can get your requests blocked.
+NCBI requires a valid email to identify requests to their servers. **A placeholder or fake address can get your requests blocked.**
 
 ---
 
 ## What You Need to Load
-* **Patient File (`.fasta.gz`):** A DNA sequence file containing exactly **one** gene. The file must not contain more than one sequence, and it should not be a whole chromosome — this tool analyzes one gene at a time.
+* **Patient File (`.fasta.gz`):** A DNA sequence file containing exactly **one** gene. The file must not contain more than one sequence, and it should not be a whole chromosome - this tool analyzes one gene at a time.
 * **Gene Name:** The official gene symbol you want to check (for example: **TP53** or **BRCA1**).
 
 ---
 
 ## How It Works
-* **Step 1: Automatic Download**: You type in the gene name, and the app fetches the matching reference sequence and its annotation from NCBI. Both files are cached locally, so this only happens once per gene - every following analysis reuses the cached copy. **Keep in mind that you must have enough disk memory for files.**.
+* **Step 1: Automatic Download**: You type in the gene name, and the app fetches the matching reference sequence and its annotation from NCBI. Both files are cached locally, so this only happens once per gene - every following analysis reuses the cached copy. Keep in mind that repeated gene lookups will use up local disk space over time, since each gene's reference stays cached.
 
 * **Step 2: Strand direction**: Engine compares StartPos and EndPos data from NCBI. If StartPos is greater than EndPos, gene is on minus-strand. Else - plus-strand. This information is saved once in {Gene}_chrom_strand.txt.
 
@@ -27,7 +27,7 @@ NCBI requires a valid email to identify requests to their servers. A placeholder
 
 * **Step 6: Protein Comparison**: The two protein chains are aligned side by side and compared position by position to find every difference.
 
-* **Step 7: Nucleotide Translation**: Protein difference translates into codons and trims until bare nucleotides.
+* **Step 7: Nucleotide Recovery**: For every protein-level difference found, the app traces it back to the exact codon it came from, trims away the surrounding letters that are identical between patient and reference (so a full codon comparison like CCC/CGC is reduced to just the single base that actually changed, C/G), and re-orients the result to standard genomic notation - reversing and complementing the letters if the gene sits on the minus strand of the chromosome. This is what lets a found mutation be compared against public databases like ClinVar on equal footing.
 
 * **Step 8: Result Report**: All detected changes are listed in the main window. Results can be exported to a standard .vcf file.
 
@@ -38,7 +38,7 @@ Each row represents one detected difference between the patient and the referenc
 
 **If a row is highlighted:** The mutation matches a known entry in ClinVar, a public clinical variant database. Clicking it opens a detail window showing the disease association and a color-coded significance badge (red/orange for pathogenic, yellow for uncertain, green for benign).
 
-**If a row is dim:** No matching entry was found in the public database. This does not mean the mutation is harmless - it simply means there's no public record to compare it against yet. It could also mean the app didn't find a match due to an issue on its side. Position is local, Ref/Alt is designated as proteins (not nucliotides).
+**If a row is dim:** No matching entry was found in the public database. This does not mean the mutation is harmless - it simply means there's no public record to compare it against yet. It could also mean the app didn't find a match due to an issue on its side. Position is local to the app's own reference file for the gene, not yet a universal chromosome coordinate.
 
 ---
 

@@ -4,21 +4,21 @@ import queue
 import threading
 
 import modules.lib as lib
-import modules.data_manager as dataManager
+import modules.data_manager as data_manager
 import modules.engine as engine
 import modules.interface as gui
 
 gui_command_buffer = queue.Queue()
 sys_command_buffer = queue.Queue()
 
-data_manager = dataManager.DataManager(lib.DB_PATH, gui_command_buffer)
-core = engine.Core(gui_command_buffer, data_manager)
-app = gui.App(gui_command_buffer, sys_command_buffer, data_manager)
+dm = data_manager.DataManager(lib.DB_PATH, gui_command_buffer)
+core = engine.Core(gui_command_buffer, dm)
+app = gui.App(gui_command_buffer, sys_command_buffer, dm)
 
-def system_thread():
+def system_thread(swf):
     """ System thread"""
-    while True:
-        data_manager.handle_disease_db_update()
+    while swf.is_set():
+        dm.handle_disease_db_update()
 
         command, payload = sys_command_buffer.get()
 
@@ -29,7 +29,7 @@ def system_thread():
                 # Get payload
                 data_file_path, gene_id = payload
 
-                # Anaalyze
+                # Analyse
                 results = core.run_comparing(data_file_path, gene_id)
 
                 # Seek for diseases
@@ -45,13 +45,33 @@ def system_thread():
 
             case "EXPORT":
                 mut_list, gene_ref, exp_dir = payload
-                data_manager.save_mutations_to_vcf(exp_dir, mut_list, gene_ref)
+                dm.save_mutations_to_vcf(exp_dir, mut_list, gene_ref)
 
-            case _: pass       
+            case "CLOSE":
+                swf.clear()
+
+            case _: pass
         sys_command_buffer.task_done()
 
 if __name__ == "__main__":
-    sys_thread = threading.Thread(target=system_thread, daemon=True)
+    # Set main working flag
+    system_work_flag = threading.Event()
+    system_work_flag.set()
+
+    # Start system daemon
+    sys_thread = threading.Thread(
+    target=system_thread,
+    args=(system_work_flag,),
+    daemon=True
+    )
     sys_thread.start()
 
+    # Interface loop
+    def on_closing():
+        """ All-threads close function """
+        lib.log("App closed.")
+        system_work_flag.clear()
+        app.destroy()
+
+    app.protocol("WM_DELETE_WINDOW", on_closing)
     app.mainloop()
