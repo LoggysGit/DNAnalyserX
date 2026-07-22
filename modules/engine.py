@@ -10,10 +10,11 @@ from Bio.Align import PairwiseAligner, substitution_matrices
 from Bio.Seq import Seq
 from BCBio import GFF
 
-import modules.lib as lib
+from modules import lib
 
 class Core:
     """ Calculus core"""
+
     def __init__(self, gui_cmd_buff, data_manager):
         self.data_manager = data_manager
         self.gui_command_buffer = gui_cmd_buff

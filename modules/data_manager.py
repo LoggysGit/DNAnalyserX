@@ -13,7 +13,7 @@ import sqlite3
 
 import requests
 
-import modules.lib as lib
+from modules import lib
 
 class Database:
     """ Database class"""
@@ -108,6 +108,7 @@ class Database:
 
 class DataManager:
     """ Main data manager"""
+
     def __init__(self, db_path, gui_cmds):
         self.db_path = db_path
         self.gui_cmd_buffer = gui_cmds

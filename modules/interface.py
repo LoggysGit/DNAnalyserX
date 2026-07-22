@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog
 import customtkinter as ctk
 
-import modules.lib as lib
+from modules import lib
 
 class MutationDetailWindow(ctk.CTkToplevel):
     """ Detailed mutation info window"""
@@ -234,6 +234,7 @@ class MutationDetailWindow(ctk.CTkToplevel):
 
 class InfoWindow(ctk.CTkToplevel):
     """ App information window"""
+
     def __init__(self, parent, ui_colors, md_path):
         super().__init__(parent)
 
@@ -353,6 +354,7 @@ class InfoWindow(ctk.CTkToplevel):
 
 class ProgressWindow(ctk.CTkToplevel):
     """ Small progressbar window"""
+
     def __init__(self, parent, ui_colors, task_count, title=""):
         super().__init__(parent)
 
@@ -424,6 +426,7 @@ class ProgressWindow(ctk.CTkToplevel):
 
 class App(ctk.CTk):
     """ Main App class"""
+
     def __init__(self, gui_cmd_buff, sys_cmd_buff, dman):
         super().__init__()
 

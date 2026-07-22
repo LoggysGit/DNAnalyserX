@@ -20,7 +20,7 @@ APP_INFO_DIR = DATA_DIR / "app_info.md"
 GENES_CACHE_DIR = DATA_DIR / "genes"
 DB_PATH = DATA_DIR / "disease_database.db"
 
-# --- Constants --- #
+# --- Config --- #
 config = configparser.ConfigParser()
 config.read(CONFIG_DIR)
 
@@ -39,7 +39,7 @@ def log(data):
         f.write(f"{timestamp} | {data}\n")
     print(data)
 
-def dbg(str):
+def dbg(msg):
     """ System debug """
     if IS_DEBUG:
-        print(f"> {str}")
+        print(f"> {msg}")
