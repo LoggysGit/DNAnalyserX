@@ -769,7 +769,7 @@ class App(ctk.CTk):
             self.system_command_buffer.put(("RUN", [self.current_data_file_path, gene_id]))
 
             self.clear_all()
-            
+
         else: lib.log("Cannot start the analysis.")
 
     def export_to_vcf(self):

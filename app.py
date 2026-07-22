@@ -3,74 +3,75 @@
 import queue
 import threading
 
-import modules.lib as lib
-import modules.data_manager as data_manager
-import modules.engine as engine
-import modules.interface as gui
+from modules import lib, data_manager, engine, interface
 
 gui_command_buffer = queue.Queue()
 sys_command_buffer = queue.Queue()
 
 dm = data_manager.DataManager(lib.DB_PATH, gui_command_buffer)
 core = engine.Core(gui_command_buffer, dm)
-app = gui.App(gui_command_buffer, sys_command_buffer, dm)
+app = interface.App(gui_command_buffer, sys_command_buffer, dm)
 
-def system_thread(swf):
-    """ System thread"""
-    while swf.is_set():
-        dm.handle_disease_db_update()
+def system_thread():
+    """ System thread """
+    while True:
+        item = sys_command_buffer.get()
 
-        command, payload = sys_command_buffer.get()
+        try:
+            command, payload = item
 
-        match command:
-            case "RUN":
-                lib.log("Analysing started...")
+            match command:
+                # Analysis command #
+                case "RUN":
+                    # Check DB relevance first
+                    dm.handle_disease_db_update()
 
-                # Get payload
-                data_file_path, gene_id = payload
+                    lib.log("Analysing started...")
 
-                # Analyse
-                results = core.run_comparing(data_file_path, gene_id)
+                    # Compare
+                    data_file_path, gene_id = payload
+                    results = core.run_comparing(data_file_path, gene_id)
 
-                # Seek for diseases
-                full_mutations_data = core.find_mutations(results, gene_id)
-                full_mutations_data.sort(key=lambda r: r[0])
+                    # Extract mutations
+                    full_mutations_data = core.find_mutations(results, gene_id)
+                    full_mutations_data.sort(key=lambda r: r[0])
 
-                # Send into interface
-                for di in full_mutations_data:
-                    gui_command_buffer.put(("MUTATION", di))
+                    # Send results
+                    for di in full_mutations_data:
+                        gui_command_buffer.put(("MUTATION", di))
 
-                gui_command_buffer.put(("DONE", None))
-                lib.log("Analysing has ended.")
+                    # Mark for done
+                    gui_command_buffer.put(("DONE", None))
+                    lib.log("Analysing has ended.")
 
-            case "EXPORT":
-                mut_list, gene_ref, exp_dir = payload
-                dm.save_mutations_to_vcf(exp_dir, mut_list, gene_ref)
+                # Export file command #
+                case "EXPORT":
+                    mut_list, gene_ref, exp_dir = payload
+                    dm.save_mutations_to_vcf(exp_dir, mut_list, gene_ref)
 
-            case "CLOSE":
-                swf.clear()
+                # Daemon close (break) command #
+                case "CLOSE":
+                    break
 
-            case _: pass
-        sys_command_buffer.task_done()
+                # Unknown command #
+                case _:
+                    lib.dbg(f"Unknown command: {command}")
+
+        except Exception as e:
+            lib.log(f"System thread error: {e}")
+
+        finally:
+            sys_command_buffer.task_done()
 
 if __name__ == "__main__":
-    # Set main working flag
-    system_work_flag = threading.Event()
-    system_work_flag.set()
-
     # Start system daemon
-    sys_thread = threading.Thread(
-    target=system_thread,
-    args=(system_work_flag,),
-    daemon=True
-    )
+    sys_thread = threading.Thread(target=system_thread, daemon=True)
     sys_thread.start()
 
-    # Interface loop
     def on_closing():
         """ All-threads close function """
-        lib.log("App closed.")
-        system_work_flag.clear()
+        lib.log("App closing...")
+        sys_command_buffer.put(("CLOSE", None))
         app.destroy()
 
     app.protocol("WM_DELETE_WINDOW", on_closing)

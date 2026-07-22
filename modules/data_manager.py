@@ -246,7 +246,7 @@ class DataManager:
 
         try:
             with gzip.open(target_path, "rt", encoding="utf-8") as f_text:
-                _ = f_text.readline()  
+                _ = f_text.readline()
 
                 for line in f_text:
                     tokens = line.split("\t")
@@ -296,7 +296,7 @@ class DataManager:
                     disease_name = tokens[13].strip()
 
                     batch.append((
-                        hgvs_key, chromosome, gene_symbol, position, 
+                        hgvs_key, chromosome, gene_symbol, position,
                         ref_allele, alt_allele, clnvs, clinical_sig, disease_name
                     ))
 
